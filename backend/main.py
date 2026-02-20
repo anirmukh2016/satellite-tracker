@@ -13,7 +13,12 @@ Static files (frontend/) are served directly by FastAPI.
 
 import asyncio
 import json
+import sys
 from pathlib import Path
+
+# Ensure this file's directory is on sys.path so sibling modules
+# (propagator, tle_fetcher) are importable regardless of working directory.
+sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
