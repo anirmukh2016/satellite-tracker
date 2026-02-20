@@ -10,7 +10,7 @@
  */
 
 import { updateISSPosition, updateTrails, setTrailsVisible } from './iss.js';
-import { updateEarthRotation } from './globe.js';
+import { updateEarthRotation, pointCameraAtISS } from './globe.js';
 import { setECIVisible, setECEFVisible, isECIVisible, isECEFVisible,
          updateECEFRotation, updateGMSTIndicator } from './frames.js';
 
@@ -21,6 +21,7 @@ const TLE_URL     = '/api/tle';
 let ws = null;
 let reconnectTimer = null;
 let orbitRefreshTimer = null;
+let initialCameraSet = false;
 
 // Toggle states
 let showPastTrail   = true;
@@ -87,6 +88,10 @@ function connectWebSocket() {
 }
 
 function handleState(state) {
+  if (!initialCameraSet) {
+    initialCameraSet = true;
+    pointCameraAtISS(state.lat, state.lon, state.alt_km, state.gmst_rad || 0);
+  }
   updateHUD(state);
   updateISSPosition(state);
   updateEarthRotation(state.gmst_rad);

@@ -266,6 +266,30 @@ export function updateEarthRotation(gmst_rad) {
   currentGMST = gmst_rad;
 }
 
+/**
+ * Rotate the camera to face the ISS on initial load.
+ * Keeps the same orbital distance but points the camera directly at the ISS.
+ */
+export function pointCameraAtISS(lat, lon, alt_km, gmst_rad) {
+  // Compute ISS world-space position (mirrors the formula in iss.js)
+  const ecef = latLonAltToXYZ(lat, lon, alt_km);
+  const cosG = Math.cos(gmst_rad);
+  const sinG = Math.sin(gmst_rad);
+  const wx = ecef.x * cosG + ecef.z * sinG;
+  const wy = ecef.y;
+  const wz = -ecef.x * sinG + ecef.z * cosG;
+
+  // Move camera along the ISS direction at the same distance
+  const dist = camera.position.length();
+  const len  = Math.sqrt(wx * wx + wy * wy + wz * wz);
+  camera.position.set(
+    (wx / len) * dist,
+    (wy / len) * dist,
+    (wz / len) * dist
+  );
+  controls.update();
+}
+
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 export function getRenderer() { return renderer; }
