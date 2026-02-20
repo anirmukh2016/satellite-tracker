@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISS Real-Time Tracker — SGP4 Orbit Propagation</title>
+  <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- Import map: tells the browser how to resolve bare specifiers like 'three'.
+       Required because OrbitControls.js and other Three.js addons do
+       `import { ... } from 'three'` internally. Without this the browser throws
+       "Failed to resolve module specifier 'three'". -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <!-- ── 3D Canvas ──────────────────────────────────────────────────────── -->
+  <canvas id="canvas"></canvas>
+
+  <!-- ── Loading Screen ─────────────────────────────────────────────────── -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="load-title">ISS TRACKER</div>
+    <div class="load-sub">Fetching TLE &amp; propagating orbit...</div>
+  </div>
+
+  <!-- ── Connection Status ──────────────────────────────────────────────── -->
+  <div id="connection-status" class="connecting">◌ CONNECTING...</div>
+
+  <!-- ── HUD Panel (top-left) ───────────────────────────────────────────── -->
+  <div id="hud">
+    <div id="hud-header">
+      <div class="iss-icon">🛰</div>
+      <div>
+        <div class="title">ISS ZARYA</div>
+        <div class="subtitle">NORAD 25544 · SGP4</div>
+      </div>
+    </div>
+    <div id="hud-body">
+      <div class="hud-row">
+        <span class="hud-label">Latitude</span>
+        <span class="hud-value highlight" id="hud-lat">—</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Longitude</span>
+        <span class="hud-value highlight" id="hud-lon">—</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Altitude</span>
+        <span class="hud-value" id="hud-alt">—</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Orbital Speed</span>
+        <span class="hud-value" id="hud-speed">—</span>
+      </div>
+    </div>
+    <div id="hud-time">—</div>
+  </div>
+
+  <!-- ── Controls Panel (top-right) ────────────────────────────────────── -->
+  <div id="controls">
+    <div id="controls-header">Visualization</div>
+    <div id="controls-body">
+      <button class="toggle-btn active" id="btn-past-trail">
+        Past Trail (30 min)
+        <span class="indicator color-dot-trail"></span>
+      </button>
+      <button class="toggle-btn active" id="btn-future-trail">
+        Future Trail (30 min)
+        <span class="indicator color-dot-future"></span>
+      </button>
+      <button class="toggle-btn" id="btn-eci">
+        ECI Frame Axes
+        <span class="indicator color-dot-eci"></span>
+      </button>
+      <button class="toggle-btn" id="btn-ecef">
+        ECEF Frame Axes
+        <span class="indicator color-dot-ecef"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── ECI/ECEF Vector Display (center-right) ────────────────────────── -->
+  <div id="eci-display">
+    <div class="vec-title">ECI Position (km)</div>
+    <div id="eci-r"></div>
+    <div class="vec-title" style="margin-top:10px">ECI Velocity (km/s)</div>
+    <div id="eci-v"></div>
+    <div class="vec-title" style="margin-top:10px">GMST</div>
+    <div class="vec-row">
+      <span class="vec-axis" style="color:#ff0">θ</span>
+      <span class="vec-value" id="eci-gmst">—</span>
+    </div>
+  </div>
+
+  <!-- ── TLE Panel (bottom-left) ────────────────────────────────────────── -->
+  <div id="tle-panel">
+    <div id="tle-header">
+      <span class="tle-title">Two-Line Element Set (TLE)</span>
+      <span class="tle-chevron">▲</span>
+    </div>
+    <div id="tle-content">
+      <div class="tle-lines" id="tle-lines">
+        <div class="tle-line name">Loading...</div>
+      </div>
+      <div class="tle-params">
+        <div class="tle-param">
+          <div class="tle-param-label">Epoch</div>
+          <div class="tle-param-value" id="tle-epoch">—</div>
+        </div>
+        <div class="tle-param">
+          <div class="tle-param-label">Inclination</div>
+          <div class="tle-param-value" id="tle-incl">—</div>
+        </div>
+        <div class="tle-param">
+          <div class="tle-param-label">Orbital Period</div>
+          <div class="tle-param-value" id="tle-period">—</div>
+        </div>
+        <div class="tle-param">
+          <div class="tle-param-label">Eccentricity</div>
+          <div class="tle-param-value" id="tle-ecc">—</div>
+        </div>
+        <div class="tle-param">
+          <div class="tle-param-label">RAAN</div>
+          <div class="tle-param-value" id="tle-raan">—</div>
+        </div>
+        <div class="tle-param">
+          <div class="tle-param-label">Mean Motion</div>
+          <div class="tle-param-value" id="tle-motion">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Info Panel (bottom-right) ─────────────────────────────────────── -->
+  <div id="info-panel">
+    <div id="info-header">
+      <span class="info-title">How It Works</span>
+      <span class="info-chevron">▲</span>
+    </div>
+    <div id="info-content">
+      <p>
+        <strong>SGP4</strong> (Simplified General Perturbations 4) predicts
+        satellite positions from <strong>TLEs</strong> — compact orbital
+        parameter sets updated twice daily by NORAD.
+      </p>
+      <br/>
+      <p>
+        <strong>ECI frame</strong> (toggle above): fixed to distant stars.
+        SGP4 outputs position here. Axes don't rotate.
+      </p>
+      <br/>
+      <p>
+        <strong>ECEF frame</strong>: rotates with Earth.
+        GMST (<span class="highlight">θ</span>) is the rotation angle between
+        ECI-X and ECEF-X, increasing by 360° every 86,164 seconds.
+      </p>
+      <br/>
+      <p>
+        <strong>Trail colors:</strong><br/>
+        <span style="color:#ff8800">■</span> Past 30 min &nbsp;
+        <span style="color:#00ff44">■</span> Future 30 min
+      </p>
+      <br/>
+      <p style="color:#6880a0; font-size:10px">
+        Data: Celestrak · Backend: FastAPI + sgp4<br/>
+        Frontend: Three.js r160 · Updates: 2s via WebSocket
+      </p>
+    </div>
+  </div>
+
+  <!-- ── ISS Hover Tooltip ───────────────────────────────────────────────── -->
+  <div id="tooltip"></div>
+
+  <!-- ── Main Script ────────────────────────────────────────────────────── -->
+  <script type="module">
+    import { initGlobe, startRenderLoop } from '/static/globe.js';
+    import { initISS, animateISS } from '/static/iss.js';
+    import { initFrames, updateAxisLabels } from '/static/frames.js';
+    import { initUI } from '/static/ui.js';
+
+    // ── Initialize ──────────────────────────────────────────────────────────
+    const canvas = document.getElementById('canvas');
+
+    // 1. Set up 3D scene, camera, renderer, controls
+    const { scene, camera, renderer, controls } = initGlobe(canvas);
+
+    // 2. Set up ISS marker and trails
+    initISS(scene, camera);
+
+    // 3. Set up coordinate frame visualizations
+    initFrames(scene);
+
+    // 4. Set up UI: HUD, toggles, WebSocket connection
+    initUI();
+
+    // ── Render Loop ─────────────────────────────────────────────────────────
+    let lastTime = performance.now();
+
+    startRenderLoop(() => {
+      const now   = performance.now();
+      const delta = Math.min((now - lastTime) / 1000, 0.1); // cap at 100ms
+      lastTime    = now;
+
+      // Animate ISS (smooth position interpolation + glow pulse)
+      animateISS(delta);
+
+      // Update HTML axis labels (project 3D positions to screen)
+      updateAxisLabels(camera, renderer);
+    });
+  </script>
+
+</body>
+</html>
