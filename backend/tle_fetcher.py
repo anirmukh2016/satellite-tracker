@@ -9,6 +9,7 @@ TLEs are updated ~twice a day by NORAD/Space-Track. We cache for 1 hour to
 avoid hammering the server on every request.
 """
 
+import threading
 import time
 import httpx
 
@@ -21,6 +22,7 @@ CELESTRAK_URL = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={ISS_NORAD_I
 
 # Cache storage: (timestamp, tle_name, tle_line1, tle_line2)
 _cache: dict = {}
+_cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 3600  # 1 hour
 
 
@@ -40,8 +42,9 @@ def fetch_tle() -> tuple[str, str, str]:
     now = time.time()
 
     # Return cached TLE if still fresh
-    if _cache and (now - _cache["timestamp"]) < CACHE_TTL_SECONDS:
-        return _cache["name"], _cache["line1"], _cache["line2"]
+    with _cache_lock:
+        if _cache and (now - _cache["timestamp"]) < CACHE_TTL_SECONDS:
+            return _cache["name"], _cache["line1"], _cache["line2"]
 
     # Fetch fresh TLE
     try:
@@ -60,18 +63,20 @@ def fetch_tle() -> tuple[str, str, str]:
         if not line1.startswith("1 ") or not line2.startswith("2 "):
             raise ValueError(f"Malformed TLE lines: {line1[:30]} / {line2[:30]}")
 
-        _cache["timestamp"] = now
-        _cache["name"] = name
-        _cache["line1"] = line1
-        _cache["line2"] = line2
+        with _cache_lock:
+            _cache["timestamp"] = now
+            _cache["name"] = name
+            _cache["line1"] = line1
+            _cache["line2"] = line2
 
         return name, line1, line2
 
     except Exception as e:
         # If fetch fails and we have a stale cache, use it rather than crashing
-        if _cache:
-            print(f"[TLE] Fetch failed ({e}), using stale cache")
-            return _cache["name"], _cache["line1"], _cache["line2"]
+        with _cache_lock:
+            if _cache:
+                print(f"[TLE] Fetch failed ({e}), using stale cache")
+                return _cache["name"], _cache["line1"], _cache["line2"]
         raise RuntimeError(f"Could not fetch TLE and no cache available: {e}")
 
 

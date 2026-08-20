@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tracking the ISS: TLEs, SGP4, and Reference Frames</title>
+<link rel="stylesheet" href="/static/style.css" />
+<style>
+  /* Override the app shell's fixed/hidden-overflow layout for a normal
+     scrolling article page. */
+  html, body {
+    overflow: auto;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .article {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    line-height: 1.7;
+  }
+
+  .article a { color: var(--accent); }
+  .article a:hover { text-decoration: none; }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 28px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+  .back-link:hover { color: var(--accent); }
+
+  .article h1 {
+    font-size: 26px;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    line-height: 1.35;
+    margin-bottom: 10px;
+  }
+
+  .article .deck {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .article .meta {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .article h2 {
+    font-size: 18px;
+    color: var(--accent);
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .article h3 {
+    font-size: 14px;
+    color: var(--text);
+    margin: 24px 0 10px;
+  }
+
+  .article p { margin-bottom: 14px; color: var(--text); }
+  .article ul, .article ol { margin: 0 0 14px 22px; color: var(--text); }
+  .article li { margin-bottom: 6px; }
+
+  .article strong { color: var(--accent3); }
+
+  .article code {
+    font-family: var(--font);
+    background: rgba(255,255,255,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #8af;
+  }
+
+  .article pre {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius);
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin-bottom: 18px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #8af;
+  }
+
+  .article table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+    font-size: 12.5px;
+  }
+  .article th, .article td {
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    text-align: left;
+  }
+  .article th {
+    color: var(--accent);
+    text-transform: uppercase;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    background: rgba(74, 170, 255, 0.06);
+  }
+
+  .article blockquote {
+    border-left: 2px solid var(--accent);
+    padding: 4px 0 4px 16px;
+    color: var(--text-dim);
+    margin: 0 0 18px;
+  }
+
+  .demo-card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius);
+    padding: 18px 20px;
+    margin: 20px 0 28px;
+  }
+  .demo-card .demo-title {
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+  .demo-card .demo-note {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .article hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+
+  .footer-note {
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+</style>
+</head>
+<body>
+<div class="article">
+
+  <a class="back-link" href="/">&larr; Back to the live tracker</a>
+
+  <h1>Tracking the ISS: TLEs, SGP4, and Reference Frames</h1>
+  <p class="deck">How this real-time tracker turns two lines of numbers into a moving 3D orbit.</p>
+  <p class="meta">ISS Satellite Tracker &middot; Project Write-Up</p>
+
+  <h2>1. Introduction</h2>
+  <p>
+    The International Space Station is the largest object humans have ever put in orbit, circling Earth
+    roughly every 92 minutes at about <strong>7.66&nbsp;km/s</strong> &mdash; more than 22&times; the speed
+    of sound. It's bright enough to see with the naked eye, it has been continuously crewed since
+    November 2000, and its orbit is public data, updated and published multiple times a day.
+  </p>
+  <p>
+    That combination &mdash; a fast-moving, well-documented, visually verifiable object &mdash; makes the
+    ISS an unusually good vehicle for learning real orbital mechanics instead of a toy simplification.
+    Everything this tracker does (fetch orbital elements, propagate them forward and backward in time,
+    convert between reference frames, project onto a rotating Earth) is the same pipeline used for GPS
+    satellites, weather satellites, and deep-space missions. This post walks through that pipeline end
+    to end: the data format, the propagation algorithm, the coordinate systems, and how it's all wired
+    together in the live tracker.
+  </p>
+
+  <h2>2. What Is a TLE?</h2>
+  <p>
+    A <strong>Two-Line Element set (TLE)</strong> is a compact, fixed-width text format NORAD uses to
+    describe a satellite's orbital state at a specific moment (the "epoch"). NORAD publishes TLEs for
+    roughly 25,000 tracked objects. The ISS's looks like this:
+  </p>
+  <pre>ISS (ZARYA)
+1 25544U 98067A   24016.54842593  .00016717  00000-0  10270-3 0  9993
+2 25544  51.6400 337.6640 0001938  86.2141 273.9285 15.49559958435128</pre>
+  <p>The key numbers, mostly in Line 2:</p>
+  <table>
+    <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Inclination</td><td>51.6400&deg;</td><td>Orbital plane tilted 51.64&deg; from the equator</td></tr>
+      <tr><td>RAAN</td><td>337.6640&deg;</td><td>Where the orbit crosses the equator heading north</td></tr>
+      <tr><td>Eccentricity</td><td>0.0001938</td><td>Nearly circular (0 = perfect circle)</td></tr>
+      <tr><td>Mean motion</td><td>15.4956&hellip;</td><td>~15.5 orbits/day &rarr; ~92 minute period</td></tr>
+    </tbody>
+  </table>
+  <p>
+    This tracker fetches a fresh TLE from <a href="https://celestrak.org" target="_blank" rel="noopener">Celestrak</a>
+    (NORAD catalog ID 25544), caches it for an hour, and falls back to the last known-good TLE if a fetch
+    fails &mdash; TLEs only update a couple of times a day, so an hour-old set is still accurate to within
+    a few kilometers.
+  </p>
+
+  <h2>3. The SGP4 Algorithm</h2>
+  <p>
+    A TLE alone is just a snapshot. To know where the ISS <em>is right now</em>, or where it will be in
+    30 minutes, you need to propagate it forward in time. That's what <strong>SGP4</strong>
+    (Simplified General Perturbations 4) does &mdash; the standard algorithm NORAD's own TLEs are designed
+    to be used with. It accounts for:
+  </p>
+  <ul>
+    <li><strong>Earth's oblateness</strong> &mdash; the J2, J3, and J4 gravitational harmonic terms, since Earth bulges at the equator rather than being a perfect sphere</li>
+    <li><strong>Atmospheric drag</strong> &mdash; encoded directly in the TLE's BSTAR drag term, which matters a lot at the ISS's relatively low ~400&nbsp;km altitude</li>
+    <li><strong>Solar and lunar gravitational perturbations</strong> &mdash; smaller effects that matter for longer-range predictions</li>
+  </ul>
+  <p>
+    Given a TLE and a target time, SGP4 outputs a position and velocity vector in kilometers and
+    kilometers/second &mdash; in the <strong>ECI</strong> reference frame, described next.
+  </p>
+
+  <h2>4. ECI vs. ECEF: The Rotation Problem</h2>
+  <p>
+    SGP4's output is fixed relative to the stars, not to the ground &mdash; which is exactly why a second
+    coordinate system, and a conversion between them, is needed.
+  </p>
+  <table>
+    <thead><tr><th></th><th>ECI (Earth-Centered Inertial)</th><th>ECEF (Earth-Centered, Earth-Fixed)</th></tr></thead>
+    <tbody>
+      <tr><td>Origin</td><td>Earth's center</td><td>Earth's center</td></tr>
+      <tr><td>X-axis</td><td>&rarr; Vernal equinox (fixed)</td><td>&rarr; Prime meridian (rotates)</td></tr>
+      <tr><td>Z-axis</td><td>&rarr; North celestial pole</td><td>&rarr; Geographic north pole</td></tr>
+      <tr><td>Rotates with Earth?</td><td>No</td><td>Yes (once every 86,164&nbsp;s &mdash; a sidereal day)</td></tr>
+      <tr><td>Used by</td><td>SGP4's raw output, orbital mechanics</td><td>GPS, lat/lon/alt, ground tracking</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The bridge between the two is <strong>GMST</strong> (Greenwich Mean Sidereal Time) &mdash; the angle
+    Earth has rotated relative to the vernal equinox at a given instant. A simple rotation by &minus;GMST
+    around the Z axis converts ECI into ECEF:
+  </p>
+  <pre>[x_ecef]   [ cos&theta;   sin&theta;   0 ] [x_eci]
+[y_ecef] = [-sin&theta;   cos&theta;   0 ] [y_eci]
+[z_ecef]   [  0       0      1 ] [z_eci]</pre>
+  <p>
+    The tracker computes GMST on the backend and sends it to the browser alongside every position update,
+    which is also what lets the 3D Earth mesh and the ECEF axis overlay rotate in sync with real time.
+  </p>
+
+  <h2>5. WGS84 Geodetic: Why Lat/Lon Isn't Trivial</h2>
+  <p>
+    ECEF coordinates are Cartesian (x, y, z in km) &mdash; useful for math, useless for a human reading a
+    map. Converting to latitude/longitude/altitude sounds like basic trigonometry until you remember
+    Earth isn't a sphere: it's an oblate <strong>WGS84 ellipsoid</strong>, flattened slightly at the poles.
+    That flattening means latitude isn't a simple arctangent of z over the equatorial radius &mdash; the
+    tracker uses <strong>Bowring's iterative method</strong> to solve for geodetic latitude and altitude
+    on the WGS84 ellipsoid accurately, rather than approximating Earth as a sphere and accepting the
+    resulting altitude error.
+  </p>
+
+  <h2>6. Implementation</h2>
+  <p>
+    The tracker is a small FastAPI backend paired with a vanilla Three.js frontend &mdash; no bundler,
+    no build step for the frontend, dependencies managed with
+    <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a> on the backend.
+  </p>
+  <pre>Celestrak.org &rarr; tle_fetcher.py (1h cache)
+                       &rarr; propagator.py (SGP4 &rarr; ECI &rarr; ECEF &rarr; geodetic)
+                            &rarr; main.py (FastAPI: REST + WebSocket)
+                                 &rarr; browser (Three.js: globe, ISS marker, trails, axes)</pre>
+  <ul>
+    <li><strong>Backend</strong> &mdash; <code>tle_fetcher.py</code> fetches and caches the TLE; <code>propagator.py</code> is the physics core (SGP4, GMST, ECI/ECEF/geodetic conversions, speed, orbit trail); <code>main.py</code> exposes REST endpoints (<code>/api/tle</code>, <code>/api/orbit</code>, <code>/api/position</code>) and a WebSocket at <code>/ws</code> that pushes a fresh position every 2 seconds.</li>
+    <li><strong>Frontend</strong> &mdash; <code>globe.js</code> builds the Earth/atmosphere/star field and render loop; <code>iss.js</code> draws the ISS marker and orange (past)/cyan (future) orbit trail; <code>frames.js</code> renders the ECI/ECEF axis overlay; <code>ui.js</code> is the WebSocket client that ties it all together and drives the HUD.</li>
+    <li><strong>Deployment</strong> &mdash; a Render Blueprint (<code>render.yaml</code>) runs <code>uv sync</code> and starts <code>uvicorn</code> directly against the FastAPI app, on Render's free tier.</li>
+  </ul>
+
+  <h2>7. Demo</h2>
+  <a class="demo-card" href="https://satellite-tracker-vblj.onrender.com/" target="_blank" rel="noopener">
+    <div class="demo-title">&#128752; Live tracker &rarr; satellite-tracker-vblj.onrender.com</div>
+    <div class="demo-note">Runs on Render's free tier &mdash; the instance spins down after inactivity, so the first load after a while can take ~50 seconds to wake up.</div>
+  </a>
+  <p>What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live
+  position, the orange/cyan past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel,
+  and a toggle to overlay the ECI and ECEF axes directly on the globe.</p>
+
+  <h2>8. Further Work</h2>
+  <ul>
+    <li><strong>Ground station footprint</strong> &mdash; draw the ISS's visibility circle on the globe for a given observer location</li>
+    <li><strong>Pass predictor</strong> &mdash; compute upcoming visible passes for a chosen lat/lon, the way apps like Heavens-Above do</li>
+    <li><strong>Multi-satellite support</strong> &mdash; extend past NORAD 25544 to track any object with a public TLE</li>
+    <li><strong>Historical trail persistence</strong> &mdash; store and replay past orbits instead of only a rolling &plusmn;30 minute window</li>
+  </ul>
+
+  <hr />
+  <p class="footer-note">Built with FastAPI, sgp4, and Three.js. TLE data from Celestrak. &middot; <a href="/">Back to the live tracker</a></p>
+
+</div>
+</body>
+</html>

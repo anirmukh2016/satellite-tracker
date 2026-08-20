@@ -3,6 +3,7 @@ ISS Satellite Tracker — FastAPI Backend
 
 Endpoints:
   GET  /              → serves the frontend (index.html)
+  GET  /blog          → serves the blog post (blog.html)
   GET  /api/tle       → current TLE + parsed orbital parameters
   GET  /api/orbit     → orbit trail (±30 min around now)
   GET  /api/position  → current ISS position (single REST snapshot)
@@ -30,12 +31,24 @@ from tle_fetcher import fetch_tle, parse_tle_epoch, parse_tle_params
 # ── App setup ──────────────────────────────────────────────────────────────────
 app = FastAPI(title="ISS Satellite Tracker", version="1.0.0")
 
-# Serve frontend static files
+# Serve frontend static assets (JS/CSS/textures) under /static/*.
+# Note: this mounts at /static, not at "/" — the "/" route below serves
+# index.html directly, which in turn references assets as /static/....
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 
+def _fetch_state() -> dict:
+    """Fetch the current TLE and propagate it to a full position/velocity state."""
+    _, line1, line2 = fetch_tle()
+    return get_full_state(line1, line2)
+
+
 # ── REST endpoints ─────────────────────────────────────────────────────────────
+# get_tle/get_orbit/get_position are plain (non-async) functions: FastAPI runs
+# sync path operations in a worker thread automatically, so a slow/expired TLE
+# fetch here never blocks the event loop — and thus never stalls the /ws update
+# loop for every other connected client.
 
 @app.get("/")
 async def serve_index():
@@ -43,8 +56,14 @@ async def serve_index():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
 
 
+@app.get("/blog")
+async def serve_blog():
+    """Serve the project write-up / blog post page."""
+    return FileResponse(str(FRONTEND_DIR / "blog.html"))
+
+
 @app.get("/api/tle")
-async def get_tle():
+def get_tle():
     """
     Return the current ISS TLE with parsed orbital parameters.
 
@@ -67,7 +86,7 @@ async def get_tle():
 
 
 @app.get("/api/orbit")
-async def get_orbit():
+def get_orbit():
     """
     Return the ISS orbit trail: positions ±30 minutes around now.
 
@@ -78,22 +97,19 @@ async def get_orbit():
     """
     try:
         _, line1, line2 = fetch_tle()
-        trail = compute_orbit_trail(line1, line2,
+        return compute_orbit_trail(line1, line2,
                                     past_minutes=30,
                                     future_minutes=30,
                                     step_seconds=30)
-        return trail
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
 
 
 @app.get("/api/position")
-async def get_position():
+def get_position():
     """Return current ISS position as a REST snapshot (for debugging/testing)."""
     try:
-        _, line1, line2 = fetch_tle()
-        state = get_full_state(line1, line2)
-        return state
+        return _fetch_state()
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
 
@@ -129,13 +145,17 @@ async def websocket_position(websocket: WebSocket):
 
     try:
         while True:
+            # Offload the blocking fetch_tle()/SGP4 work to a thread so it
+            # never stalls the event loop (and every other client's feed).
             try:
-                _, line1, line2 = fetch_tle()
-                state = get_full_state(line1, line2)
-                await websocket.send_text(json.dumps(state))
+                state = await asyncio.to_thread(_fetch_state)
             except Exception as e:
-                # Send error to client so it can display a warning
+                # Send an error to the client so it can display a warning.
+                # If the socket is already broken, send_text raises here and
+                # falls through to the outer handlers below, which log it.
                 await websocket.send_text(json.dumps({"error": str(e)}))
+            else:
+                await websocket.send_text(json.dumps(state))
 
             # Update every 2 seconds — fast enough for smooth animation,
             # light enough not to overload the server

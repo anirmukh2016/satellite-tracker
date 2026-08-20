@@ -2,6 +2,8 @@
 
 A real-time 3D tracker for the International Space Station using SGP4 orbit propagation, built as a showcase project demonstrating orbital mechanics, coordinate systems, and live satellite tracking.
 
+**Live demo:** https://satellite-tracker-vblj.onrender.com/ (hosted on Render's free tier — the instance spins down after inactivity, so the first load after a while can take ~50 seconds to wake up)
+
 ## Quick Start
 
 ```bash
@@ -9,7 +11,7 @@ bash run.sh
 # Then open http://localhost:8000
 ```
 
-Requirements: Python 3.9+, pip, internet connection.
+Requirements: Python 3.12+ (pinned via `.python-version`), [uv](https://docs.astral.sh/uv/), internet connection. `run.sh` runs `uv sync` to install dependencies, then starts the server with `uv run uvicorn backend.main:app --reload --port 8000 --host 0.0.0.0`.
 
 ---
 
@@ -118,20 +120,35 @@ Then ECEF → geodetic (lat/lon/alt) via Bowring's iterative method on the WGS84
 ```
 satellite-tracker/
 ├── backend/
-│   ├── main.py           # FastAPI app, WebSocket endpoint
+│   ├── main.py           # FastAPI app, REST endpoints, WebSocket endpoint
 │   ├── propagator.py     # SGP4 + coordinate conversions (heavily commented)
-│   ├── tle_fetcher.py    # Celestrak fetch + 1h cache
-│   └── requirements.txt
+│   └── tle_fetcher.py    # Celestrak fetch + 1h cache
 ├── frontend/
 │   ├── index.html        # Single-page app, Three.js ESM imports
-│   ├── globe.js          # Earth mesh, atmosphere, star field, render loop
-│   ├── iss.js            # ISS marker, orbit trail, hover tooltip
-│   ├── frames.js         # ECI/ECEF coordinate axis visualization
-│   ├── ui.js             # HUD, TLE panel, toggle buttons, WebSocket
-│   └── style.css         # Dark space theme
-├── run.sh                # One-command startup
+│   ├── blog.html          # Write-up on the physics & implementation
+│   ├── globe.js           # Earth mesh, atmosphere, star field, render loop
+│   ├── iss.js              # ISS marker, orbit trail, hover tooltip
+│   ├── frames.js           # ECI/ECEF coordinate axis visualization
+│   ├── ui.js                # HUD, TLE panel, toggle buttons, WebSocket
+│   └── style.css            # Dark space theme
+├── pyproject.toml        # Dependencies (managed with uv)
+├── uv.lock                # Locked dependency versions
+├── .python-version        # Pinned Python version (3.12)
+├── render.yaml             # Render Blueprint (build/start commands for deploy)
+├── run.sh                   # One-command local startup (uv sync + uvicorn)
 └── README.md
 ```
+
+---
+
+## Deployment
+
+Deployed on [Render](https://render.com)'s free tier via the Blueprint at [`render.yaml`](render.yaml):
+
+- **Build:** `uv sync --frozen && uv cache prune --ci`
+- **Start:** `uv run uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+
+Live at **https://satellite-tracker-vblj.onrender.com/**.
 
 ---
 
@@ -171,18 +188,13 @@ For the best visual, add a NASA Blue Marble texture:
 
 ---
 
-## Blog Post Outline
+## Blog Post
 
-If you want to write about this project:
+A full write-up on the physics and implementation behind this tracker — TLEs, SGP4, ECI/ECEF, WGS84 geodetic conversion, and how it's all wired together — is available at:
 
-1. **Introduction**: Why track satellites? What makes the ISS special?
-2. **What is a TLE?**: Decode the numbers, explain orbital elements
-3. **SGP4 Algorithm**: Simplified explanation — what perturbations it handles
-4. **ECI vs ECEF**: The rotation problem, introducing GMST
-5. **WGS84 Geodetic**: Why lat/lon isn't trivial — the Earth is an ellipsoid
-6. **Implementation**: Python backend, Three.js frontend, WebSocket streaming
-7. **Demo**: Screenshots/video of the tracker in action
-8. **Further Work**: Add ground station footprint, ISS pass predictor, etc.
+**[Tracking the ISS: TLEs, SGP4, and Reference Frames](https://satellite-tracker-vblj.onrender.com/blog)**
+
+(also served locally at `/blog`, source in [`frontend/blog.html`](frontend/blog.html))
 
 ---
 
@@ -191,6 +203,7 @@ If you want to write about this project:
 | Endpoint | Method | Description |
 |---|---|---|
 | `/` | GET | Frontend (index.html) |
+| `/blog` | GET | Blog post write-up (blog.html) |
 | `/api/tle` | GET | Current TLE + parsed orbital parameters |
 | `/api/orbit` | GET | Orbit trail (±30 min, 30s steps) |
 | `/api/position` | GET | Snapshot of current ISS position |
