@@ -125,7 +125,8 @@ satellite-tracker/
 │   └── tle_fetcher.py    # Celestrak fetch + 1h cache
 ├── frontend/
 │   ├── index.html        # Single-page app, Three.js ESM imports
-│   ├── blog.html          # Write-up on the physics & implementation
+│   ├── blog.html          # Thin shell: fetches & renders blog.md client-side
+│   ├── blog.md             # Blog post content (edit this, not blog.html)
 │   ├── globe.js           # Earth mesh, atmosphere, star field, render loop
 │   ├── iss.js              # ISS marker, orbit trail, hover tooltip
 │   ├── frames.js           # ECI/ECEF coordinate axis visualization
@@ -194,7 +195,7 @@ A full write-up on the physics and implementation behind this tracker — TLEs, 
 
 **[Tracking the ISS: TLEs, SGP4, and Reference Frames](https://satellite-tracker-vblj.onrender.com/blog)**
 
-(also served locally at `/blog`, source in [`frontend/blog.html`](frontend/blog.html))
+Also served locally at `/blog`. To edit the post, just edit [`frontend/blog.md`](frontend/blog.md) — plain Markdown, no HTML/CSS knowledge needed. `frontend/blog.html` is a thin shell that fetches and renders it client-side.
 
 ---
 
