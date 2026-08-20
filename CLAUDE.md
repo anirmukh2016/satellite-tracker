@@ -12,14 +12,14 @@ This installs Python dependencies and starts the FastAPI server with hot-reload 
 
 **Manual backend start:**
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000 --host 0.0.0.0
+uv sync
+uv run uvicorn backend.main:app --reload --port 8000 --host 0.0.0.0
 ```
 
-**Production (Heroku):**
+**Production (Render):**
+Deploys via `render.yaml` (Render Blueprint). Build command: `uv sync --frozen && uv cache prune --ci`. Start command:
 ```bash
-uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+uv run uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 ```
 
 There are no test or lint configurations in this project.
