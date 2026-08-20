@@ -179,13 +179,9 @@ Live at **https://satellite-tracker-vblj.onrender.com/**.
 
 ---
 
-## Optional: Adding an Earth Texture
+## Earth Texture
 
-For the best visual, add a NASA Blue Marble texture:
-
-1. Download from NASA: `earth_daymap.jpg` (2048×1024 or 4096×2048)
-2. Place in `frontend/textures/earth_daymap.jpg`
-3. The globe will automatically use it; without it, a solid blue-grey sphere is shown
+The globe uses a NASA Blue Marble daymap (`frontend/textures/earth_daymap.jpg`), already included in the repo — no setup needed. If it's ever missing or fails to load, `globe.js` falls back to a simple procedural blue-grey sphere automatically.
 
 ---
 

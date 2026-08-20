@@ -79,7 +79,7 @@ Celestrak.org → tle_fetcher.py (1h cache)
 ```
 
 - **Backend** — `tle_fetcher.py` fetches and caches the TLE; `propagator.py` is the physics core (SGP4, GMST, ECI/ECEF/geodetic conversions, speed, orbit trail); `main.py` exposes REST endpoints (`/api/tle`, `/api/orbit`, `/api/position`) and a WebSocket at `/ws` that pushes a fresh position every 2 seconds.
-- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop; `iss.js` draws the ISS marker and orange (past)/cyan (future) orbit trail; `frames.js` renders the ECI/ECEF axis overlay; `ui.js` is the WebSocket client that ties it all together and drives the HUD.
+- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop; `iss.js` draws the ISS marker and orange (past)/green (future) orbit trail; `frames.js` renders the ECI/ECEF axis overlay; `ui.js` is the WebSocket client that ties it all together and drives the HUD.
 - **Deployment** — a Render Blueprint (`render.yaml`) runs `uv sync` and starts `uvicorn` directly against the FastAPI app, on Render's free tier.
 
 ## 7. Demo
@@ -88,7 +88,7 @@ Celestrak.org → tle_fetcher.py (1h cache)
 >
 > Runs on Render's free tier — the instance spins down after inactivity, so the first load after a while can take ~50 seconds to wake up.
 
-What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/cyan past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
+What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/green past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
 
 ## 8. Further Work
 
