@@ -9,9 +9,6 @@
  */
 
 import * as THREE from 'three';
-import { Line2 } from 'three/addons/lines/Line2.js';
-import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
-import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, getEarthMesh } from './globe.js';
 
 // Colors
@@ -110,61 +107,35 @@ function createISSMarker() {
 // ── Orbit Trail Lines ────────────────────────────────────────────────────────
 
 function createTrailLines() {
-  // Trails use Line2/LineGeometry/LineMaterial ("fat lines") rather than
-  // plain THREE.Line + LineBasicMaterial: LineBasicMaterial's `linewidth`
-  // is silently clamped to 1px on most desktop browsers (Chrome, Safari,
-  // Edge), so a real cross-browser thickness increase requires these
-  // screen-space fat lines instead, which render `linewidth` in pixels.
-  const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
-
   // Past trail — orange
-  const pastGeom = new LineGeometry();
-  const pastMat  = new LineMaterial({
+  const pastGeom = new THREE.BufferGeometry();
+  const pastMat  = new THREE.LineBasicMaterial({
     color: COLOR_PAST,
-    vertexColors: true,
     transparent: true,
     opacity: 0.85,
-    linewidth: 2, // pixels
-    resolution,
+    linewidth: 1,  // Note: linewidth >1 only works on WebGL2 with LineMaterial
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  pastTrailLine = new Line2(pastGeom, pastMat);
+  pastTrailLine = new THREE.Line(pastGeom, pastMat);
   pastTrailLine.name = 'pastTrail';
   pastTrailLine.frustumCulled = false;
   (getEarthMesh() || scene).add(pastTrailLine);
 
   // Future trail — green
-  const futureGeom = new LineGeometry();
-  const futureMat  = new LineMaterial({
+  const futureGeom = new THREE.BufferGeometry();
+  const futureMat  = new THREE.LineBasicMaterial({
     color: COLOR_FUTURE,
-    vertexColors: true,
     transparent: true,
     opacity: 0.55,
-    linewidth: 2, // pixels
-    resolution,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  futureTrailLine = new Line2(futureGeom, futureMat);
+  futureTrailLine = new THREE.Line(futureGeom, futureMat);
   futureTrailLine.name = 'futureTrail';
   futureTrailLine.frustumCulled = false;
   (getEarthMesh() || scene).add(futureTrailLine);
 }
-
-/**
- * Keep the fat-line materials' `resolution` uniform in sync with the
- * viewport — LineMaterial converts `linewidth` (pixels) to clip-space
- * using this, so a stale resolution after a window resize would render
- * the trails at the wrong on-screen thickness.
- */
-function onTrailResize() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  if (pastTrailLine)   pastTrailLine.material.resolution.set(w, h);
-  if (futureTrailLine) futureTrailLine.material.resolution.set(w, h);
-}
-window.addEventListener('resize', onTrailResize);
 
 /**
  * Update the trail lines from server data.
@@ -203,7 +174,10 @@ function setTrailGeometry(line, points, color) {
     vertices.push(pos.x, pos.y, pos.z);
   }
 
-  line.geometry.setPositions(vertices);
+  const buf = new THREE.Float32BufferAttribute(vertices, 3);
+  line.geometry.setAttribute('position', buf);
+  line.geometry.setDrawRange(0, vertices.length / 3);
+  line.geometry.computeBoundingSphere();
 
   // Fade: gradient along trail using vertex colors
   const nPts = vertices.length / 3;
@@ -214,8 +188,9 @@ function setTrailGeometry(line, points, color) {
     colorArr[i * 3 + 1] = color.g * t;
     colorArr[i * 3 + 2] = color.b * t;
   }
-  line.geometry.setColors(colorArr);
-  line.material.needsUpdate = true;
+  line.geometry.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+  line.material.vertexColors = true;
+  line.material.needsUpdate  = true;
 }
 
 // ── ISS Position Update ──────────────────────────────────────────────────────
