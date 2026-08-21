@@ -23,12 +23,25 @@ CELESTRAK_URL = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={ISS_NORAD_I
 # Cache storage: (timestamp, tle_name, tle_line1, tle_line2)
 _cache: dict = {}
 _cache_lock = threading.Lock()
+_condition = threading.Condition(_cache_lock)
+_fetching = False  # True while some thread is actually calling Celestrak
+_last_error: Exception | None = None  # the in-flight fetch's error, for waiters
 CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
+def _cache_is_fresh(now: float) -> bool:
+    return bool(_cache) and (now - _cache["timestamp"]) < CACHE_TTL_SECONDS
 
 
 def fetch_tle() -> tuple[str, str, str]:
     """
     Fetch the latest ISS TLE from Celestrak, with 1-hour caching.
+
+    Single-flight: if the cache is stale and a fetch is already in progress
+    on another thread, wait for that fetch's result instead of firing a
+    second concurrent request — Celestrak doesn't appreciate bursts of
+    near-simultaneous requests when many local threads all notice the
+    cache expired at once.
 
     Returns:
         (name, line1, line2) — the three lines of a standard TLE set
@@ -39,14 +52,31 @@ def fetch_tle() -> tuple[str, str, str]:
         Line 2: Orbital elements — inclination, RAAN, eccentricity,
                 argument of perigee, mean anomaly, mean motion
     """
-    now = time.time()
+    global _fetching, _last_error
 
-    # Return cached TLE if still fresh
-    with _cache_lock:
-        if _cache and (now - _cache["timestamp"]) < CACHE_TTL_SECONDS:
+    with _condition:
+        if _cache_is_fresh(time.time()):
             return _cache["name"], _cache["line1"], _cache["line2"]
 
-    # Fetch fresh TLE
+        if _fetching:
+            # Someone else is already talking to Celestrak — wait for their
+            # result instead of firing a second concurrent request. Once
+            # they're done, take whatever they left behind: a cache (fresh
+            # from success, or stale-but-valid from a graceful fallback) is
+            # exactly what we'd have returned ourselves; no cache at all
+            # means their attempt failed outright, so share their error
+            # rather than each waiter retrying Celestrak on its own.
+            while _fetching:
+                _condition.wait(timeout=15.0)
+            if _cache:
+                return _cache["name"], _cache["line1"], _cache["line2"]
+            raise RuntimeError(f"Could not fetch TLE and no cache available: {_last_error}")
+
+        # Nobody else is fetching, and the cache is stale/empty — we do it.
+        _fetching = True
+
+    # The actual network call happens outside the lock, so a slow fetch
+    # never blocks other threads from reading a still-valid cache.
     try:
         response = httpx.get(CELESTRAK_URL, timeout=10.0)
         response.raise_for_status()
@@ -63,17 +93,22 @@ def fetch_tle() -> tuple[str, str, str]:
         if not line1.startswith("1 ") or not line2.startswith("2 "):
             raise ValueError(f"Malformed TLE lines: {line1[:30]} / {line2[:30]}")
 
-        with _cache_lock:
-            _cache["timestamp"] = now
+        with _condition:
+            _cache["timestamp"] = time.time()
             _cache["name"] = name
             _cache["line1"] = line1
             _cache["line2"] = line2
+            _fetching = False
+            _condition.notify_all()
 
         return name, line1, line2
 
     except Exception as e:
-        # If fetch fails and we have a stale cache, use it rather than crashing
-        with _cache_lock:
+        with _condition:
+            _fetching = False
+            _last_error = e
+            _condition.notify_all()
+            # If fetch fails and we have a stale cache, use it rather than crashing
             if _cache:
                 print(f"[TLE] Fetch failed ({e}), using stale cache")
                 return _cache["name"], _cache["line1"], _cache["line2"]
