@@ -35,6 +35,7 @@ export function initUI() {
   connectWebSocket();
   loadTLEInfo();
   scheduleOrbitRefresh();
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   // Fallback: hide loading screen after 5s regardless of WS state
   // so the 3D globe is always visible even if backend has issues
@@ -272,6 +273,24 @@ function scheduleOrbitRefresh() {
 
   // Refresh every 60 seconds (orbit trail changes as ISS moves)
   orbitRefreshTimer = setInterval(loadOrbitTrail, 60_000);
+}
+
+// Background tabs throttle/pause setInterval and setTimeout (and browsers
+// can silently kill the WebSocket without ever firing onclose), so a long
+// stint in the background can leave the orbit trail stale and the socket
+// dead. Catch up immediately as soon as the tab is visible again instead of
+// waiting for the next regularly-scheduled timer tick.
+function handleVisibilityChange() {
+  if (document.visibilityState !== 'visible') return;
+
+  loadOrbitTrail();
+  clearInterval(orbitRefreshTimer);
+  orbitRefreshTimer = setInterval(loadOrbitTrail, 60_000);
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    clearTimeout(reconnectTimer);
+    connectWebSocket();
+  }
 }
 
 // ── Connection Status ─────────────────────────────────────────────────────────
