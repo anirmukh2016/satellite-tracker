@@ -22,6 +22,8 @@ let ws = null;
 let reconnectTimer = null;
 let orbitRefreshTimer = null;
 let initialCameraSet = false;
+let hiddenAt = null;
+let latestState = null;
 
 // Toggle states
 let showPastTrail   = true;
@@ -89,6 +91,7 @@ function connectWebSocket() {
 }
 
 function handleState(state) {
+  latestState = state;
   if (!initialCameraSet) {
     initialCameraSet = true;
     pointCameraAtISS(state.lat, state.lon, state.alt_km, state.gmst_rad || 0);
@@ -281,7 +284,13 @@ function scheduleOrbitRefresh() {
 // dead. Catch up immediately as soon as the tab is visible again instead of
 // waiting for the next regularly-scheduled timer tick.
 function handleVisibilityChange() {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState === 'hidden') {
+    hiddenAt = Date.now();
+    return;
+  }
+
+  const hiddenMs = hiddenAt ? Date.now() - hiddenAt : 0;
+  hiddenAt = null;
 
   loadOrbitTrail();
   clearInterval(orbitRefreshTimer);
@@ -290,6 +299,13 @@ function handleVisibilityChange() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     clearTimeout(reconnectTimer);
     connectWebSocket();
+  }
+
+  // Only recenter after a real absence (3min+) — a quick tab switch
+  // shouldn't override a view the user deliberately rotated to.
+  if (hiddenMs >= 3 * 60_000 && latestState) {
+    pointCameraAtISS(latestState.lat, latestState.lon,
+                      latestState.alt_km, latestState.gmst_rad || 0);
   }
 }
 
