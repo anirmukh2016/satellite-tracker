@@ -17,6 +17,7 @@ import { setECIVisible, setECEFVisible, isECIVisible, isECEFVisible,
 const WS_URL      = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
 const ORBIT_URL   = '/api/orbit';
 const TLE_URL     = '/api/tle';
+const WS_STALE_MS = 5000; // 2s send cadence + margin for jitter
 
 let ws = null;
 let reconnectTimer = null;
@@ -24,6 +25,7 @@ let orbitRefreshTimer = null;
 let initialCameraSet = false;
 let hiddenAt = null;
 let latestState = null;
+let lastMessageAt = Date.now();
 
 // Toggle states
 let showPastTrail   = true;
@@ -65,6 +67,7 @@ function connectWebSocket() {
   };
 
   ws.onmessage = (event) => {
+    lastMessageAt = Date.now();
     try {
       const state = JSON.parse(event.data);
       if (state.error) {
@@ -88,6 +91,19 @@ function connectWebSocket() {
     console.error('[WS] Error:', err);
     ws.close();
   };
+}
+
+// A WebSocket can report readyState === OPEN long after the underlying
+// connection has actually died (no close event ever fires, especially
+// after long mobile backgrounding). Detach the old socket's handlers
+// before closing it so its onclose can't race with the new connection.
+function forceReconnect() {
+  if (ws) {
+    ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+    ws.close();
+  }
+  clearTimeout(reconnectTimer);
+  connectWebSocket();
 }
 
 function handleState(state) {
@@ -296,9 +312,9 @@ function handleVisibilityChange() {
   clearInterval(orbitRefreshTimer);
   orbitRefreshTimer = setInterval(loadOrbitTrail, 60_000);
 
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    clearTimeout(reconnectTimer);
-    connectWebSocket();
+  if (!ws || ws.readyState !== WebSocket.OPEN ||
+      Date.now() - lastMessageAt > WS_STALE_MS) {
+    forceReconnect();
   }
 
   // Only recenter after a real absence (3min+) — a quick tab switch
