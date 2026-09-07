@@ -16,9 +16,16 @@ import httpx
 # ISS NORAD Catalog Number (assigned when launched)
 ISS_NORAD_ID = 25544
 
-# Celestrak GP data API (new endpoint since 2022-02-13)
+# Primary source: Celestrak GP data API (new endpoint since 2022-02-13)
 # Old URL (removed): https://celestrak.org/satcat/tle.php?CATNR=25544
 CELESTRAK_URL = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={ISS_NORAD_ID}&FORMAT=TLE"
+
+# Fallback source: Celestrak blocks/throttles traffic from some shared
+# cloud-hosting IP ranges (Render, Heroku, etc.) as an anti-scraping measure,
+# which can leave the primary source unreachable even though it's otherwise
+# healthy. wheretheiss.at is built for apps like this and isn't subject to
+# the same blocking, so we fall back to it before giving up.
+WHERETHEISS_URL = f"https://api.wheretheiss.at/v1/satellites/{ISS_NORAD_ID}/tles"
 
 # Cache storage: (timestamp, tle_name, tle_line1, tle_line2)
 _cache: dict = {}
@@ -33,9 +40,43 @@ def _cache_is_fresh(now: float) -> bool:
     return bool(_cache) and (now - _cache["timestamp"]) < CACHE_TTL_SECONDS
 
 
+def _parse_tle_text(text: str) -> tuple[str, str, str]:
+    """Parse a raw 3-line TLE text block (name, line1, line2)."""
+    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+
+    if len(lines) < 3:
+        raise ValueError(f"Unexpected TLE response: {text[:200]}")
+
+    name, line1, line2 = lines[0], lines[1], lines[2]
+
+    if not line1.startswith("1 ") or not line2.startswith("2 "):
+        raise ValueError(f"Malformed TLE lines: {line1[:30]} / {line2[:30]}")
+
+    return name, line1, line2
+
+
+def _fetch_from_celestrak() -> tuple[str, str, str]:
+    response = httpx.get(CELESTRAK_URL, timeout=10.0)
+    response.raise_for_status()
+    return _parse_tle_text(response.text)
+
+
+def _fetch_from_wheretheiss() -> tuple[str, str, str]:
+    response = httpx.get(WHERETHEISS_URL, timeout=10.0)
+    response.raise_for_status()
+    data = response.json()
+    line1, line2 = data["line1"], data["line2"]
+
+    if not line1.startswith("1 ") or not line2.startswith("2 "):
+        raise ValueError(f"Malformed TLE lines from fallback: {line1[:30]} / {line2[:30]}")
+
+    return data.get("header", "ISS (ZARYA)"), line1, line2
+
+
 def fetch_tle() -> tuple[str, str, str]:
     """
-    Fetch the latest ISS TLE from Celestrak, with 1-hour caching.
+    Fetch the latest ISS TLE from Celestrak (falling back to wheretheiss.at
+    if Celestrak is unreachable), with 1-hour caching.
 
     Single-flight: if the cache is stale and a fetch is already in progress
     on another thread, wait for that fetch's result instead of firing a
@@ -78,20 +119,11 @@ def fetch_tle() -> tuple[str, str, str]:
     # The actual network call happens outside the lock, so a slow fetch
     # never blocks other threads from reading a still-valid cache.
     try:
-        response = httpx.get(CELESTRAK_URL, timeout=10.0)
-        response.raise_for_status()
-        lines = [l.strip() for l in response.text.strip().splitlines() if l.strip()]
-
-        if len(lines) < 3:
-            raise ValueError(f"Unexpected TLE response: {response.text[:200]}")
-
-        name = lines[0]
-        line1 = lines[1]
-        line2 = lines[2]
-
-        # Validate it looks like a real TLE
-        if not line1.startswith("1 ") or not line2.startswith("2 "):
-            raise ValueError(f"Malformed TLE lines: {line1[:30]} / {line2[:30]}")
+        try:
+            name, line1, line2 = _fetch_from_celestrak()
+        except Exception as primary_error:
+            print(f"[TLE] Celestrak fetch failed ({primary_error}), trying fallback source")
+            name, line1, line2 = _fetch_from_wheretheiss()
 
         with _condition:
             _cache["timestamp"] = time.time()
