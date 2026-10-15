@@ -23,7 +23,9 @@
 html, body {
   width: 100%;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -35,6 +37,7 @@ html, body {
   position: fixed;
   inset: 0;
   display: block;
+  touch-action: none;
 }
 
 /* ── Connection status ────────────────────────────────────────────────────── */
@@ -76,6 +79,7 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 50;
   overflow: hidden;
@@ -162,6 +166,7 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 50;
   overflow: hidden;
@@ -242,6 +247,7 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 50;
   overflow: hidden;
@@ -334,6 +340,7 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 50;
   overflow: hidden;
@@ -433,6 +440,7 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 50;
   padding: 10px 12px;
@@ -512,4 +520,72 @@ html, body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ── Mobile / small screens ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root {
+    --m: 8px;
+    --top: max(8px, env(safe-area-inset-top));
+    --bottom: max(8px, env(safe-area-inset-bottom));
+    --left: max(8px, env(safe-area-inset-left));
+    --right: max(8px, env(safe-area-inset-right));
+  }
+
+  #hud {
+    top: var(--top);
+    left: var(--left);
+    width: calc(50vw - 12px);
+  }
+  #hud-header { padding: 8px 10px; }
+  #hud-header .iss-icon { font-size: 16px; }
+  #hud-body { padding: 8px 10px; gap: 6px; }
+  .hud-label { font-size: 10px; }
+  .hud-value { font-size: 12px; }
+  #hud-time { padding: 6px 10px; font-size: 10px; }
+
+  #controls {
+    top: var(--top);
+    right: var(--right);
+    width: calc(50vw - 12px);
+  }
+  #controls-body { padding: 8px; }
+  .toggle-btn { padding: 9px 8px; font-size: 11px; }
+
+  #connection-status {
+    top: auto;
+    bottom: calc(var(--bottom) + 84px);
+    font-size: 10px;
+    padding: 4px 10px;
+  }
+
+  #eci-display {
+    top: auto;
+    bottom: calc(var(--bottom) + 120px);
+    right: var(--right);
+    transform: none;
+    width: calc(50vw - 12px);
+    padding: 8px 10px;
+  }
+
+  #tle-panel, #info-panel {
+    left: var(--left);
+    right: var(--right);
+    width: auto;
+  }
+  #info-panel { bottom: var(--bottom); }
+  #tle-panel  { bottom: calc(var(--bottom) + 42px); }
+
+  #tle-content, #info-content {
+    max-height: 40dvh;
+    overflow-y: auto;
+  }
+  .tle-line { font-size: 9.5px; }
+}
+
+@media (max-width: 380px) {
+  #hud-header .subtitle { display: none; }
+  .hud-label { font-size: 9px; }
+  .hud-value { font-size: 11px; }
+  .toggle-btn { font-size: 10px; }
 }

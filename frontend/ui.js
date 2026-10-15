@@ -224,9 +224,16 @@ function setupCollapsible(headerId, contentId) {
   const header  = document.getElementById(headerId);
   const content = document.getElementById(contentId);
   if (!header || !content) return;
+  header.classList.add('collapsible-header');
+  content.classList.add('collapsible-content');
 
   header.addEventListener('click', () => {
     const isOpen = content.classList.contains('visible');
+    // On phones the bottom panels are stacked, so keep only one open at a time
+    if (!isOpen && window.matchMedia('(max-width: 640px)').matches) {
+      document.querySelectorAll('.collapsible-content.visible').forEach(c => c.classList.remove('visible'));
+      document.querySelectorAll('.collapsible-header.open').forEach(h => h.classList.remove('open'));
+    }
     content.classList.toggle('visible', !isOpen);
     header.classList.toggle('open', !isOpen);
   });

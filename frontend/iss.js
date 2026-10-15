@@ -274,6 +274,10 @@ export function animateISS(deltaTime) {
 
 function setupHoverEvents() {
   window.addEventListener('mousemove', onMouseMove);
+  // Touch has no hover: a tap on the ISS shows the tooltip, a tap elsewhere hides it
+  window.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') onMouseMove(e);
+  });
 }
 
 function onMouseMove(event) {
