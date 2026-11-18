@@ -119,6 +119,7 @@ satellite-tracker/
 │   ├── index.html        # Single-page app, Three.js ESM imports
 │   ├── orbit.js          # SGP4 + GMST/ECI/ECEF/geodetic math (heavily commented)
 │   ├── vendor/satellite.es.js  # satellite.js v5.0.0 (SGP4 core), vendored
+│   ├── vendor/marked.umd.js    # marked v18.1.3 (renders blog.md), vendored
 │   ├── blog.html         # Thin shell: fetches & renders blog.md client-side
 │   ├── blog.md           # Blog post content (edit this, not blog.html)
 │   ├── globe.js          # Earth mesh, atmosphere, star field, render loop

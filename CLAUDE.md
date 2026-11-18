@@ -35,7 +35,7 @@ ui.js → distributes data to: globe.js, iss.js, frames.js, HUD
 
 ### Frontend (`frontend/`)
 
-Uses Three.js r160 via CDN import maps. Assets are served from the site root (`/globe.js`, `/textures/...`).
+Uses Three.js r160 via CDN import maps (pinned version). satellite.js and marked are vendored in `vendor/` so nothing else floats on a CDN. Assets are served from the site root (`/globe.js`, `/textures/...`).
 
 - **`orbit.js`** — The physics core, ported from the original Python propagator. SGP4 via vendored `vendor/satellite.es.js` (satellite.js v5.0.0); GMST, ECI→ECEF, ECEF→geodetic (Bowring), speed, orbit trail and TLE parsing are written out by hand. `getFullState()` returns the same shape the old WebSocket stream sent.
 - **`index.html`** — Single-page app. Initializes all modules in sequence. Contains HUD, TLE panel, controls panel, and ECI vector display as HTML overlays.
