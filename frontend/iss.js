@@ -2,7 +2,7 @@
  * iss.js — ISS marker, orbit trail, and hover tooltip
  *
  * Responsibilities:
- *   - ISS 3D marker (glowing sprite + mesh)
+ *   - ISS 3D marker (low-poly station model + halo ring, constant on-screen size)
  *   - Past trail (orange line) and future trail (cyan line)
  *   - Hover raycasting for tooltip
  *   - Smooth position interpolation between updates
@@ -26,10 +26,13 @@ const TRAIL_WIDTH  = 1;          // px
 let scene, camera;
 
 // ISS marker objects
-let issGroup;           // parent group
-let issMesh;            // the physical marker
-let issGlow;            // glow sprite
-let issOrbitRing;       // small ring around ISS position
+let issGroup;           // positioned at the ISS
+let issScaler;          // child of issGroup: scaled each frame for constant on-screen size
+let issModel;           // the low-poly station, oriented along the orbit
+let issMesh;            // invisible hit sphere used for hover/tap detection
+let issPing;            // expanding halo ring
+const targetQuat = new THREE.Quaternion();
+let quatSet = false;
 
 // Trail line objects
 let pastTrailLine;
@@ -49,6 +52,13 @@ let latestState = null;
 let raycaster, mouse;
 let isHovering = false;
 
+// Marker sizing: the real ISS is ~109 m, so it is exaggerated and kept a
+// constant number of CSS pixels wide at any zoom.
+const ISS_TARGET_PX = 56;
+const ISS_MIN_SCALE = 0.02;
+const ISS_MAX_SCALE = 4;   // caps the size at max zoom-out so it doesn't dwarf the globe
+const PING_PERIOD_S = 2.4;
+
 const MAX_PAST_POINTS = 120;  // 120 × 30s = 60 minutes of history
 
 export function initISS(threeScene, threeCamera) {
@@ -65,49 +75,101 @@ export function initISS(threeScene, threeCamera) {
 
 // ── ISS Marker ──────────────────────────────────────────────────────────────
 
+function box(w, h, d, color, emissive) {
+  return new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshLambertMaterial({ color, emissive })
+  );
+}
+
+/**
+ * Low-poly ISS, ~1 unit across the truss (X), modules along Z (forward),
+ * Y = zenith. Scaled to a constant on-screen size by animateISS.
+ */
+function buildISSModel() {
+  const model = new THREE.Group();
+  model.name = 'iss_model';
+
+  const truss = box(1.0, 0.04, 0.04, 0xe4e4e4, 0x555555);
+  model.add(truss);
+
+  // Four solar-array wings crossing the truss. Gold, so they stand out against
+  // dark ocean as well as bright land and cloud.
+  [-0.44, -0.27, 0.27, 0.44].forEach(x => {
+    const wing = box(0.14, 0.01, 0.8, 0xf2b632, 0x7a5410);
+    wing.position.set(x, 0, 0);
+    model.add(wing);
+  });
+
+  // Pressurised modules along the flight direction, plus a cross module
+  const hull = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.5, 12),
+    new THREE.MeshLambertMaterial({ color: 0xe6e6e6, emissive: 0x555555 })
+  );
+  hull.rotation.x = Math.PI / 2;
+  hull.position.set(0, -0.04, 0);
+  model.add(hull);
+
+  const node = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.26, 12),
+    new THREE.MeshLambertMaterial({ color: 0xd8d8d8, emissive: 0x4a4a4a })
+  );
+  node.rotation.z = Math.PI / 2;
+  node.position.set(0, -0.04, 0.1);
+  model.add(node);
+
+  // Radiators (light grey plates either side of the centre)
+  [-0.14, 0.14].forEach(x => {
+    const rad = box(0.09, 0.004, 0.2, 0xcfd6de, 0x2a2e33);
+    rad.position.set(x, 0.05, -0.12);
+    model.add(rad);
+  });
+
+  return model;
+}
+
+/** Ring texture: white stroke over a thin dark one, so it reads on ice and ocean alike. */
+function makeRingTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(5, 8, 15, 0.85)'; g.lineWidth = 9; g.stroke();
+  g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function createISSMarker() {
   issGroup = new THREE.Group();
   issGroup.name = 'iss';
 
-  // Core marker: glowing sphere
-  const coreGeom = new THREE.SphereGeometry(0.055, 16, 16);
-  const coreMat  = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: false,
-  });
-  issMesh = new THREE.Mesh(coreGeom, coreMat);
-  issGroup.add(issMesh);
+  issScaler = new THREE.Group();
+  issGroup.add(issScaler);
 
-  // Inner glow: slightly larger, semi-transparent
-  const innerGlowGeom = new THREE.SphereGeometry(0.10, 16, 16);
-  const innerGlowMat  = new THREE.MeshBasicMaterial({
-    color: 0x88ddff,
-    transparent: true,
-    opacity: 0.5,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const innerGlow = new THREE.Mesh(innerGlowGeom, innerGlowMat);
-  issGroup.add(innerGlow);
+  issModel = buildISSModel();
+  issScaler.add(issModel);
 
-  // Outer glow: large, very transparent
-  const outerGlowGeom = new THREE.SphereGeometry(0.22, 16, 16);
-  const outerGlowMat  = new THREE.MeshBasicMaterial({
-    color: 0x4488ff,
-    transparent: true,
-    opacity: 0.15,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
+  // Static halo + an expanding "ping" (normal blending, so the map can't tint them)
+  const ringTex = makeRingTexture();
+  const ringMat = () => new THREE.SpriteMaterial({
+    map: ringTex, transparent: true, depthWrite: false, toneMapped: false,
   });
-  issGlow = new THREE.Mesh(outerGlowGeom, outerGlowMat);
-  issGroup.add(issGlow);
+  const halo = new THREE.Sprite(ringMat());
+  halo.scale.setScalar(1.45);
+  halo.material.opacity = 0.9;
+  issScaler.add(halo);
 
-  // Orbit direction indicator: small arrow-like cone
-  const arrowGeom = new THREE.ConeGeometry(0.022, 0.07, 8);
-  const arrowMat  = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-  const arrowMesh = new THREE.Mesh(arrowGeom, arrowMat);
-  arrowMesh.name  = 'arrow';
-  issGroup.add(arrowMesh);
+  issPing = new THREE.Sprite(ringMat());
+  issScaler.add(issPing);
+
+  // Invisible, slightly oversized hit target for hover/tap
+  issMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 8, 8),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  issScaler.add(issMesh);
 
   scene.add(issGroup);
 }
@@ -226,20 +288,16 @@ export function updateISSPosition(state) {
 
   targetPos.copy(newPos);
 
-  // Orient the arrow in the direction of velocity (approximately)
-  if (state.v_eci) {
-    const vel = new THREE.Vector3(...state.v_eci).normalize();
-    const arrow = issGroup.getObjectByName('arrow');
-    if (arrow) {
-      // Project velocity to tangent plane at satellite position
-      const up = newPos.clone().normalize();
-      const tangent = vel.clone().projectOnPlane(up).normalize();
-      if (tangent.lengthSq() > 0.001) {
-        const quaternion = new THREE.Quaternion();
-        quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-        arrow.quaternion.copy(quaternion);
-      }
-    }
+  // Orient like the real station: nose along velocity, zenith up, truss across
+  // the orbit plane. ECI (x, y, z) maps to scene (x, z, -y).
+  if (state.r_eci && state.v_eci) {
+    const [rx, ry, rz] = state.r_eci, [vx, vy, vz] = state.v_eci;
+    const fwd = new THREE.Vector3(vx, vz, -vy).normalize();
+    const up  = new THREE.Vector3(rx, rz, -ry).normalize();
+    up.addScaledVector(fwd, -up.dot(fwd)).normalize();   // make exactly perpendicular
+    const side = new THREE.Vector3().crossVectors(up, fwd);
+    targetQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, up, fwd));
+    if (!quatSet) { issModel.quaternion.copy(targetQuat); quatSet = true; }
   }
 }
 
@@ -255,19 +313,18 @@ export function animateISS(deltaTime) {
   currentPos.lerp(targetPos, lerpSpeed);
   issGroup.position.copy(currentPos);
 
-  // Pulse animation on glow
-  const t = Date.now() / 1000;
-  if (issGlow) {
-    issGlow.material.opacity = 0.1 + 0.1 * Math.sin(t * 2);
-    issGlow.scale.setScalar(1.0 + 0.15 * Math.sin(t * 2));
-  }
+  issModel.quaternion.slerp(targetQuat, lerpSpeed);
 
-  // Always face camera
-  issGroup.children.forEach(child => {
-    if (child.isMesh && child !== issGroup.getObjectByName('arrow')) {
-      child.lookAt(camera.position);
-    }
-  });
+  // Constant on-screen size: scale with distance so the marker stays ~ISS_TARGET_PX wide
+  const dist = camera.position.distanceTo(currentPos);
+  const worldPerPx = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / window.innerHeight;
+  const scale = THREE.MathUtils.clamp(dist * worldPerPx * ISS_TARGET_PX, ISS_MIN_SCALE, ISS_MAX_SCALE);
+  issScaler.scale.setScalar(scale);
+
+  // Ping: ring grows and fades, repeating
+  const p = ((Date.now() / 1000) % PING_PERIOD_S) / PING_PERIOD_S;
+  issPing.scale.setScalar(1.45 + 1.3 * p);
+  issPing.material.opacity = 0.7 * (1 - p);
 }
 
 // ── Hover / Raycasting ───────────────────────────────────────────────────────
@@ -288,8 +345,7 @@ function onMouseMove(event) {
 
   raycaster.setFromCamera(mouse, camera);
 
-  // Test against ISS core mesh with a larger hit area
-  raycaster.params.Points = { threshold: 0.1 };
+  // Test against the invisible hit sphere around the model
   const hits = raycaster.intersectObject(issMesh, false);
 
   const tooltip = document.getElementById('tooltip');
