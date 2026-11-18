@@ -157,7 +157,32 @@ The **nadir line** drops from the ISS straight to the sub-satellite point ("nadi
 
 The ground track covers one full orbit (±46 minutes), and the whole layer is a single toggle, off by default.
 
-## 7. Implementation
+## 7. Day, Night and "Can I See It?"
+
+You can only see the ISS with your own eyes when two things are true at once: **you are in darkness, and the ISS is still in sunlight.** That is why passes happen shortly after dusk or before dawn. By then the Sun has dropped below your horizon, but at 420 km the ISS sits high enough to still catch its light, a bit like a mountain peak glowing after the valley has gone dark. Around midday you can't see it (the sky is too bright), and in the middle of the night it is usually inside Earth's shadow.
+
+The tracker works this out from the Sun's position, which has a short closed-form approximation:
+
+```
+n  = days since J2000
+L  = 280.460° + 0.9856474°·n          mean longitude of the Sun
+g  = 357.528° + 0.9856003°·n          mean anomaly
+λ  = L + 1.915°·sin g + 0.020°·sin 2g ecliptic longitude
+ε  = 23.439° − 0.0000004°·n           tilt of Earth's axis
+Sun direction (ECI) = ( cos λ,  cos ε·sin λ,  sin ε·sin λ )
+```
+
+It is good to about 0.01°, and in the same ECI frame as SGP4's output, so the Sun, the ISS and the rotating Earth can all be compared directly. (It also makes the frames lesson concrete: at the March equinox the Sun lies along +X, the vernal-equinox direction.)
+
+Three things follow from that one vector:
+
+- **The terminator.** A point on the ground is in daylight when its outward normal makes an acute angle with the Sun direction. The terminator is the great circle 90° from the sub-solar point. The shading uses the Sun's elevation at each point and fades across the twilight stages: *civil* (Sun 0° to −6°), *nautical* (−6° to −12°) and *astronomical* (−12° to −18°) before full night.
+- **Is the ISS sunlit?** SGP4 gives its ECI position. If it is on the sun side of Earth it is lit. If it is behind Earth, it is in shadow only if it lies within one Earth radius of the Earth–Sun axis: a cylinder of shadow trailing away from the Sun. (The real shadow is a cone with a fuzzy edge; the difference is seconds of timing.) In mid-November the ISS spends about 36 minutes of each 93-minute orbit in that shadow, close to the maximum; at other times of year it can stay in continuous sunlight for days.
+- **The visible zone.** Combine the three conditions: the ISS at least ~10° above the horizon (a circle of about 12.5° radius under it, smaller than the 20° horizon footprint), the ground dark enough (Sun below −6°) and the ISS sunlit. The globe highlights that patch. If there is a green-lit area on the dark side, people there could see the ISS now; if there isn't, nobody can.
+
+What it ignores: weather, the ISS's actual brightness (it varies with its orientation and range), and the observer's own horizon. It answers "could it be seen from there?", not "will it be bright?".
+
+## 8. Implementation
 
 The tracker is a static Three.js site plus one tiny serverless function — no bundler, no build step, and no always-on server. The orbit math runs in your browser.
 
@@ -169,28 +194,28 @@ Celestrak.org → api/tle.js (edge-cached 1h)
 
 - **TLE endpoint** — `api/tle.js` fetches the ISS TLE from Celestrak (falling back to wheretheiss.at), validates it, and lets the CDN cache it for an hour (`s-maxage` plus `stale-if-error`), so the upstream sources see roughly one request per hour no matter how many people are watching.
 - **Physics** — `orbit.js` is the physics core. SGP4 comes from the vendored satellite.js; GMST, ECI→ECEF, ECEF→geodetic (Bowring), speed, orbit and ground-track sampling, the horizon-circle geometry and TLE parsing are written out by hand, because they are the educational part. It recomputes the ISS state every 2 seconds. The same module is checked in Node tests against golden values produced by the project's original Python implementation.
-- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop. `iss.js` draws the ISS marker, the trails and the ground layer. `frames.js` renders the ECI/ECEF axes, equatorial ring, GMST arc and position vector. `ui.js` runs the tracking loop that ties it all together and drives the HUD, the toggles and the ECI/ECEF data panels.
+- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop. `iss.js` draws the ISS marker (dimmed in eclipse), the trails and the ground layer. The Earth's material is patched in `globe.js` with a small shader that adds the terminator and the visible zone. `frames.js` renders the ECI/ECEF axes, equatorial ring, GMST arc and position vector. `ui.js` runs the tracking loop that ties it all together and drives the HUD, the toggles and the ECI/ECEF data panels.
 - **The ISS marker** — a small procedural model (truss, solar arrays, modules) rather than a dot. It is exaggerated (the real station is ~109 m) and kept a constant size on screen, and it is oriented like the real thing: nose along the velocity vector, zenith up, truss across the orbit plane — all derived from the ECI position and velocity SGP4 already returns.
 - **Colour that doesn't depend on the map** — trails, axes and rings are opaque lines without blending or tone-mapping, so they read the same over ocean, forest, desert and ice.
 - **Deployment** — hosted on Vercel's free tier: static files plus the one cached function. (An earlier version ran SGP4 on a Python server and streamed positions over a WebSocket; Vercel's serverless functions can't hold WebSockets, and doing the maths in the browser also means zero per-viewer server load.)
 
-## 8. Demo
+## 9. Demo
 
 > **Live tracker:** [open the tracker](/)
 
-What you'll see: the 3D Earth rotating in real sidereal time, the ISS model moving along its live position, the orange/cyan past/future trail, a HUD with live lat/lon/altitude/speed, and the raw TLE panel.
+What you'll see: the 3D Earth rotating in real sidereal time with the real day/night terminator, the ISS model moving along its live position, the orange/cyan past/future trail, a HUD with live lat/lon/altitude/speed, and the raw TLE panel.
 
 Things to try:
 
+- **Day / Night & Visibility** — find a moment when the HUD says "Sunlit" and a green-lit patch appears on the dark side of the globe: that is where the ISS is visible.
 - **Ground Track & Footprint** — turn it on, then tilt the globe toward the horizon to see the dashed track hugging the surface, the nadir line, and the horizon circle.
 - **ECI and ECEF axes** — turn both on to see the solid/dashed axes, the yellow θ arc, the ISS position vector, and the two coordinate panels side by side.
 - **Trails in ECI** — compare the inertial orbit with the Earth-fixed one.
 - **Hover (or tap) the ISS** for its live position, altitude and speed.
 
-## 9. Further Work
+## 10. Further Work
 
 - **Observer-specific passes** — extend the horizon circle to a chosen lat/lon with an elevation mask, and compute upcoming visible passes (sunlit ISS, dark observer) the way apps like Heavens-Above do
-- **Day/night terminator** — shade the night side so "can I actually see it?" is answerable at a glance
 - **Longer ground tracks** — several orbits at once, to show the ~23° westward drift directly
 - **Multi-satellite support** — extend past NORAD 25544 to track any object with a public TLE
 - **Follow-Earth camera** — a camera locked to the rotating Earth, to see the inertial frame spin around you

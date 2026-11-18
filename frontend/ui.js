@@ -11,11 +11,11 @@
  */
 
 import { updateISSPosition, updateTrails, setTrailsVisible, setTrailFrame,
-         updateGroundTrack, setGroundVisible } from './iss.js';
-import { updateEarthRotation, pointCameraAtISS } from './globe.js';
+         updateGroundTrack, setGroundVisible, setISSSunlit } from './iss.js';
+import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible } from './globe.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
          updateGMSTIndicator, updateFrameVectors } from './frames.js';
-import { makeSatrec, getFullState, computeOrbitTrail,
+import { makeSatrec, getFullState, computeOrbitTrail, sunDirectionEci, isInEarthShadow, visibleZoneAngle,
          parseTLEEpoch, parseTLEParams, tleEpochDate } from './orbit.js';
 
 const TLE_URL        = '/api/tle';
@@ -35,6 +35,7 @@ let showPastTrail   = true;
 let showFutureTrail = true;
 let showInertialTrail = false;
 let showGround      = false;
+let showDayNight    = true;
 let showECI         = false;
 let showECEF        = false;
 
@@ -97,6 +98,7 @@ function handleState(state) {
     pointCameraAtISS(state.lat, state.lon, state.alt_km, state.gmst_rad || 0);
     hideLoading();
   }
+  updateSunAndShadow(state);
   updateHUD(state);
   updateISSPosition(state);
   updateEarthRotation(state.gmst_rad);
@@ -104,6 +106,22 @@ function handleState(state) {
   updateGMSTIndicator(state.gmst_rad);
   updateFrameVectors(state);
   updateFramePanels(state);
+}
+
+// ── Sun, shadow and visibility ───────────────────────────────────────────────
+
+let issInShadow = false;
+
+function updateSunAndShadow(state) {
+  const sunDirEci = sunDirectionEci(new Date(state.timestamp));
+  issInShadow = isInEarthShadow(state.r_eci, sunDirEci);
+  updateSunLighting({
+    sunDirEci,
+    issDirEci: state.r_eci,
+    issSunlit: !issInShadow,
+    visCos: Math.cos(visibleZoneAngle(state.alt_km)),
+  });
+  setISSSunlit(!issInShadow);
 }
 
 // ── HUD Updates ──────────────────────────────────────────────────────────────
@@ -116,6 +134,7 @@ function updateHUD(state) {
   setHUDValue('hud-lon',   `${Math.abs(state.lon).toFixed(3)}°&nbsp;${lonDir}`);
   setHUDValue('hud-alt',   `${state.alt_km.toFixed(1)}<span class="unit">km</span>`);
   setHUDValue('hud-speed', `${state.speed_km_s.toFixed(3)}<span class="unit">km/s</span>`);
+  setHUDValue('hud-sun', issInShadow ? '☾&nbsp;In shadow' : '☀&nbsp;Sunlit');
 
   // UTC clock
   const timeEl = document.getElementById('hud-time');
@@ -181,6 +200,12 @@ function setupToggleButtons() {
     showFutureTrail = !showFutureTrail;
     setTrailsVisible(showPastTrail, showFutureTrail);
     return showFutureTrail;
+  });
+
+  setupBtn('btn-daynight', () => {
+    showDayNight = !showDayNight;
+    setNightVisible(showDayNight);
+    return showDayNight;
   });
 
   setupBtn('btn-ground', () => {

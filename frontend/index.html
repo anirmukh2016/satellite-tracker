@@ -61,6 +61,10 @@
         <span class="hud-label">Orbital Speed</span>
         <span class="hud-value" id="hud-speed">—</span>
       </div>
+      <div class="hud-row">
+        <span class="hud-label">Sunlight</span>
+        <span class="hud-value" id="hud-sun">—</span>
+      </div>
     </div>
     <div id="hud-time">—</div>
   </div>
@@ -76,6 +80,10 @@
       <button class="toggle-btn active" id="btn-future-trail">
         Future Trail (30 min)
         <span class="indicator color-dot-future"></span>
+      </button>
+      <button class="toggle-btn active" id="btn-daynight">
+        Day / Night &amp; Visibility
+        <span class="indicator color-dot-daynight"></span>
       </button>
       <button class="toggle-btn" id="btn-ground">
         Ground Track &amp; Footprint
@@ -182,6 +190,16 @@
         ~109 m) and kept a constant size on screen. It faces the way it flies:
         nose along its direction of travel, solar-array truss across the orbit
         plane. Hover or tap it for live details.
+      </p>
+      <br/>
+      <p>
+        <strong>Day / Night &amp; Visibility:</strong> the night side is shaded
+        using the real position of the Sun, with a soft twilight band at the
+        terminator. The HUD says whether the ISS itself is <strong>sunlit</strong>
+        or <strong>in Earth's shadow</strong> (the model dims). The
+        <span style="color:#6fe28f">green-lit patch</span> on the dark side is
+        where you could actually see it right now: ISS above 10° elevation,
+        sky dark (Sun below −6°) and ISS sunlit. It ignores weather and brightness.
       </p>
       <br/>
       <p>

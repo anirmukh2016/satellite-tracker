@@ -36,6 +36,11 @@ let issPing;            // expanding halo ring
 const targetQuat = new THREE.Quaternion();
 let quatSet = false;
 
+// Eclipse dimming: shade 1 = sunlit, ISS_ECLIPSE_SHADE = in Earth's shadow
+const ISS_ECLIPSE_SHADE = 0.25;
+let issShadeTarget = 1, issShade = 1;
+const issMaterials = [];
+
 // Trail line objects
 let pastTrailLine;
 let futureTrailLine;
@@ -152,6 +157,12 @@ function createISSMarker() {
   issGroup.add(issScaler);
 
   issModel = buildISSModel();
+  issModel.traverse(o => {
+    if (o.isMesh) {
+      o.material.userData.base = { color: o.material.color.clone(), emissive: o.material.emissive.clone() };
+      issMaterials.push(o.material);
+    }
+  });
   issScaler.add(issModel);
 
   // Static halo + an expanding "ping" (normal blending, so the map can't tint them)
@@ -343,6 +354,11 @@ function updateNadir() {
   nadirLine.visible = groundOn;
 }
 
+/** Dim the model while the ISS is in Earth's shadow. */
+export function setISSSunlit(sunlit) {
+  issShadeTarget = sunlit ? 1 : ISS_ECLIPSE_SHADE;
+}
+
 export function setGroundVisible(visible) {
   groundOn = visible;
   if (groundGroup) groundGroup.visible = visible;
@@ -410,6 +426,15 @@ export function animateISS(deltaTime) {
 
   issModel.quaternion.slerp(targetQuat, lerpSpeed);
   updateNadir();
+
+  // Ease into / out of eclipse rather than popping
+  if (Math.abs(issShade - issShadeTarget) > 0.002) {
+    issShade += (issShadeTarget - issShade) * Math.min(1, deltaTime * 3);
+    issMaterials.forEach(m => {
+      m.color.copy(m.userData.base.color).multiplyScalar(issShade);
+      m.emissive.copy(m.userData.base.emissive).multiplyScalar(issShade);
+    });
+  }
 
   // Constant on-screen size: scale with distance so the marker stays ~ISS_TARGET_PX wide
   const dist = camera.position.distanceTo(currentPos);

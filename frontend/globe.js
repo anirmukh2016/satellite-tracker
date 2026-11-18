@@ -28,6 +28,17 @@ export const R_EARTH = EARTH_RADIUS_KM * SCALE;
 
 let scene, camera, renderer, controls;
 let earthMesh, atmosphereMesh;
+let sunLight;
+
+// Uniforms for the day/night + visible-zone shading (see createEarth).
+// Directions are unit vectors in the world frame (ECI mapped to scene axes).
+const earthUniforms = {
+  uSunDir:    { value: new THREE.Vector3(1, 0, 0) },
+  uIssDir:    { value: new THREE.Vector3(1, 0, 0) },
+  uVisCos:    { value: 1.0 },   // cos of the visible-zone angular radius around the ISS
+  uIssSunlit: { value: 0.0 },   // 1 when the ISS is in sunlight
+  uNightOn:   { value: 1.0 },
+};
 let starField;
 
 // Current GMST from backend (radians) — set by ui.js
@@ -72,8 +83,8 @@ export function initGlobe(canvas) {
   const ambient = new THREE.AmbientLight(0x334466, 0.4);
   scene.add(ambient);
 
-  // Directional: simulates the Sun (from +X direction initially)
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1.8);
+  // Directional: the Sun (moved to the real direction by updateSunLighting)
+  sunLight = new THREE.DirectionalLight(0xffffff, 1.8);
   sunLight.position.set(50, 20, 30);
   scene.add(sunLight);
 
@@ -117,10 +128,58 @@ function createEarth() {
   const material = new THREE.MeshBasicMaterial({
     map: texture,
   });
+  material.onBeforeCompile = patchEarthShader;
 
   earthMesh = new THREE.Mesh(geometry, material);
   earthMesh.name = 'earth';
   scene.add(earthMesh);
+}
+
+/**
+ * Add the day/night terminator and the ISS "visible zone" to the Earth's basic
+ * material (keeping its tone-mapping and colour handling). The Earth mesh is
+ * rotated by GMST, so the world-space normal is compared with ECI directions.
+ *
+ *  - night: darken by the sun's elevation at each point, with a soft twilight band
+ *    (sun ≈ −18° … +4.6°), leaving continents faintly visible
+ *  - zone: where the ISS is above ~10° elevation (inside uVisCos), the ground is
+ *    dark (sun below −6°) and the ISS is sunlit — i.e. where you could actually see it
+ */
+function patchEarthShader(shader) {
+  Object.assign(shader.uniforms, earthUniforms);
+
+  shader.vertexShader = 'varying vec3 vWN;\n' + shader.vertexShader.replace(
+    '#include <begin_vertex>',
+    '#include <begin_vertex>\n  vWN = normalize(mat3(modelMatrix) * normal);'
+  );
+
+  shader.fragmentShader = `
+    varying vec3 vWN;
+    uniform vec3 uSunDir;
+    uniform vec3 uIssDir;
+    uniform float uVisCos;
+    uniform float uIssSunlit;
+    uniform float uNightOn;
+  ` + shader.fragmentShader.replace(
+    '#include <map_fragment>',
+    `#include <map_fragment>
+    vec3 wn = normalize(vWN);
+    vec3 dayColor = diffuseColor.rgb;                                // texture, linear light
+    float sunDot = dot(wn, uSunDir);
+    float day = smoothstep(-0.31, 0.08, sunDot);
+    // Night factors are in linear light, so they look brighter than their value
+    vec3 shade = mix(vec3(0.03, 0.04, 0.085), vec3(1.0), day);
+    diffuseColor.rgb = dayColor * mix(vec3(1.0), shade, uNightOn);
+
+    float cosA = dot(wn, uIssDir);
+    float dark = 1.0 - smoothstep(-0.13, -0.08, sunDot);             // sun below about -6 degrees
+    float zoneOn = uNightOn * uIssSunlit * dark;
+    float inZone = smoothstep(uVisCos - 0.0008, uVisCos + 0.0008, cosA);
+    float rim = 1.0 - smoothstep(0.0, 0.0012, abs(cosA - uVisCos));
+    vec3 zoneColor = dayColor * 0.55 + vec3(0.02, 0.10, 0.05);       // the ground lit up where the ISS is visible
+    diffuseColor.rgb = mix(diffuseColor.rgb, zoneColor, zoneOn * inZone * 0.9);
+    diffuseColor.rgb += zoneOn * rim * vec3(0.25, 0.8, 0.45);`
+  );
 }
 
 function createProceduralEarthMaterial() {
@@ -257,6 +316,29 @@ export function latLonAltToXYZ(lat, lon, alt_km) {
  *
  * @param {number} gmst_rad - Greenwich Mean Sidereal Time in radians
  */
+/**
+ * Feed the sun and ISS geometry to the Earth shader and the scene's sun light.
+ * All vectors are ECI; they are mapped to scene axes (x, z, −y) here.
+ *
+ * @param {number[]} sunDirEci - unit vector Earth → Sun
+ * @param {number[]} issDirEci - ISS position direction (any length)
+ * @param {boolean}  issSunlit
+ * @param {number}   visCos    - cos of the visible-zone angular radius
+ */
+export function updateSunLighting({ sunDirEci, issDirEci, issSunlit, visCos }) {
+  const toScene = ([x, y, z]) => new THREE.Vector3(x, z, -y).normalize();
+  const sun = toScene(sunDirEci);
+  earthUniforms.uSunDir.value.copy(sun);
+  earthUniforms.uIssDir.value.copy(toScene(issDirEci));
+  earthUniforms.uVisCos.value = visCos;
+  earthUniforms.uIssSunlit.value = issSunlit ? 1.0 : 0.0;
+  if (sunLight) sunLight.position.copy(sun).multiplyScalar(50);   // light the ISS from the real sun side
+}
+
+export function setNightVisible(on) {
+  earthUniforms.uNightOn.value = on ? 1.0 : 0.0;
+}
+
 export function updateEarthRotation(gmst_rad) {
   if (earthMesh) {
     // Negate because Three.js rotates counter-clockwise around +Y,

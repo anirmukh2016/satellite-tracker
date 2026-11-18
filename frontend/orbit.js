@@ -126,6 +126,46 @@ export function computeOrbitTrail(satrec, center = new Date(),
   return { past, future };
 }
 
+// ── Sun, shadow and visibility ───────────────────────────────────────────────
+
+const R_EARTH_KM = 6378.137;
+
+/**
+ * Unit vector from Earth towards the Sun in the ECI frame (same axes as SGP4's
+ * output). Low-precision Astronomical Almanac formula, good to ~0.01°.
+ */
+export function sunDirectionEci(date) {
+  const jd = jday(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(),
+                  date.getUTCHours(), date.getUTCMinutes(),
+                  date.getUTCSeconds() + date.getUTCMilliseconds() / 1000);
+  const n = jd - 2451545.0;
+  const L = (280.460 + 0.9856474 * n) % 360;                 // mean longitude (deg)
+  const g = ((357.528 + 0.9856003 * n) % 360) * DEG;         // mean anomaly
+  const lambda = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * DEG;   // ecliptic longitude
+  const eps = (23.439 - 4e-7 * n) * DEG;                     // obliquity of the ecliptic
+  return [Math.cos(lambda), Math.cos(eps) * Math.sin(lambda), Math.sin(eps) * Math.sin(lambda)];
+}
+
+/**
+ * Is a point at ECI position `r` (km) inside Earth's shadow? Cylindrical
+ * shadow model (ignores penumbra and oblateness — seconds of error for the ISS).
+ */
+export function isInEarthShadow(r, sunDir) {
+  const d = r[0] * sunDir[0] + r[1] * sunDir[1] + r[2] * sunDir[2];
+  if (d >= 0) return false;                                   // on the sunward side
+  const px = r[0] - d * sunDir[0], py = r[1] - d * sunDir[1], pz = r[2] - d * sunDir[2];
+  return Math.hypot(px, py, pz) < R_EARTH_KM;
+}
+
+/**
+ * Angular radius (radians) of the ground circle from which a satellite at
+ * `altKm` is at least `minElevDeg` above the horizon.
+ */
+export function visibleZoneAngle(altKm, minElevDeg = 10) {
+  const el = minElevDeg * DEG;
+  return Math.acos(R_EARTH_KM * Math.cos(el) / (R_EARTH_KM + altKm)) - el;
+}
+
 /**
  * Circle on the Earth's surface bounding what the satellite can see (the
  * horizon circle). Angular radius = acos(Re / (Re + alt)), ~20.3° (~2,260 km) for

@@ -79,3 +79,52 @@ test('ground track covers one orbit and ends at the sub-satellite point', async 
   near(g.past[46].lat, now.lat, 0.01, 'last past point lat');
   near(g.past[46].lon, now.lon, 0.01, 'last past point lon');
 });
+
+const subsolar = async (date) => {
+  const { sunDirectionEci, computeGMST } = await orbit();
+  const [x, y, z] = sunDirectionEci(date);
+  const dec = Math.asin(z) * 180 / Math.PI;
+  const ra = Math.atan2(y, x);
+  let lon = (ra - computeGMST(date)) * 180 / Math.PI;   // east longitude of the sub-solar point
+  lon = ((lon + 540) % 360) - 180;
+  return { dec, lon, ra: ((ra * 180 / Math.PI) + 360) % 360 };
+};
+
+test('sun direction: equinox and solstice declinations', async () => {
+  const eq = await subsolar(new Date('2026-03-20T14:46:00Z'));
+  near(eq.dec, 0, 0.1, 'March equinox declination');
+  const sol = await subsolar(new Date('2026-06-21T08:24:00Z'));
+  near(sol.dec, 23.44, 0.1, 'June solstice declination');
+  near(sol.ra, 90, 0.5, 'June solstice right ascension');
+});
+
+test('sub-solar point on 18 Nov 2026 18:00 UTC', async () => {
+  // Declination ≈ −19.3°; equation of time ≈ +14.9 min → longitude ≈ −93.6°
+  const s = await subsolar(new Date('2026-11-18T18:00:00Z'));
+  near(s.dec, -19.3, 0.2, 'declination');
+  near(s.lon, -93.6, 1.0, 'longitude');
+});
+
+test('Earth shadow truth table', async () => {
+  const { isInEarthShadow } = await orbit();
+  assert.equal(isInEarthShadow([7000, 0, 0], [-1, 0, 0]), true);    // behind Earth
+  assert.equal(isInEarthShadow([7000, 0, 0], [1, 0, 0]), false);    // sunward
+  assert.equal(isInEarthShadow([0, 7000, 0], [-1, 0, 0]), false);   // beside the shadow cylinder
+  assert.equal(isInEarthShadow([-7000, 0, 0], [-1, 0, 0]), false);  // sunward side again
+});
+
+test('ISS spends a plausible share of an orbit in eclipse; visibility zone is smaller than the horizon circle', async () => {
+  const { makeSatrec, propagate, sunDirectionEci, isInEarthShadow, visibleZoneAngle } = await orbit();
+  const sat = makeSatrec(L1, L2);
+  let inShadow = 0, total = 0;
+  for (let m = 0; m < 93; m++) {
+    const d = new Date(DATE.getTime() + m * 60_000);
+    inShadow += isInEarthShadow(propagate(sat, d).rEci, sunDirectionEci(d)) ? 1 : 0;
+    total++;
+  }
+  assert.ok(inShadow / total <= 0.4, `eclipse share ${inShadow}/${total}`);
+  const horizon = Math.acos(6378.137 / (6378.137 + 420));
+  const zone = visibleZoneAngle(420, 10);
+  near(zone * 180 / Math.PI, 12.5, 0.5, '10° elevation zone');
+  assert.ok(zone < horizon);
+});

@@ -22,6 +22,7 @@ Requirements: Node 20+ and an internet connection (to fetch the live TLE). No de
 - **HUD**: live latitude, longitude, altitude, orbital speed, UTC time
 - **TLE panel** (bottom-left): raw Two-Line Element data driving the simulation
 - **ECI/ECEF frame toggles** (top-right): solid (ECI) vs dashed (ECEF) labeled axes, a GMST arc, the ISS position vector, and live ECI/ECEF coordinate panels showing the same vector in both frames
+- **Day / Night & Visibility** toggle (on by default): real-time day/night terminator with a twilight band, a HUD line for whether the ISS is sunlit or in Earth's shadow, and a highlighted patch on the dark side showing where the ISS could be seen right now
 - **Ground Track & Footprint** toggle: dashed path of the ISS projected onto the surface (one full orbit), a line dropping to the point beneath it, and a ring showing where on Earth the ISS is currently above the horizon
 - **Trails in ECI** toggle: switch the altitude trails between the Earth-fixed view and the true inertial orbit (a fixed ellipse in space)
 
