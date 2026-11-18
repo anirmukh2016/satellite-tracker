@@ -15,14 +15,13 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, getEarthMesh } from './globe.js';
 
 // Colors
-// Trails are drawn as an opaque, un-tonemapped core over a dark casing, so the
-// colour reads the same over ocean, desert, forest, ice and cloud. Orange vs
-// cyan is also colour-blind safe and avoids the greens/browns of the map.
+// Trails are drawn opaque and un-tonemapped (no blending), so the colour reads
+// the same over ocean, desert, forest, ice and cloud. Orange vs cyan is also
+// colour-blind safe and avoids the greens/browns of the map.
+// Keep in sync with --trail-past / --trail-future in style.css.
 const COLOR_PAST   = 0xff8a00;   // orange — where ISS has been
 const COLOR_FUTURE = 0x00e5ff;   // cyan   — predicted future path
-const COLOR_CASING = 0x05080f;   // near-black outline under both trails
-const WIDTH_CORE   = 2.5;        // px
-const WIDTH_CASING = 5.5;        // px
+const TRAIL_WIDTH  = 1.5;        // px
 
 let scene, camera;
 
@@ -118,30 +117,21 @@ function createISSMarker() {
 const trailMaterials = [];
 
 function makeTrail(name, color) {
-  const group = new THREE.Group();
-  group.name = name;
-
-  // Casing first, core on top. Both ignore blending/tone-mapping so the map
-  // beneath can't tint them; depthTest keeps the far side of the Earth hiding them.
-  [[COLOR_CASING, WIDTH_CASING, 1], [color, WIDTH_CORE, 2]].forEach(([c, width, order]) => {
-    const mat = new LineMaterial({
-      color: c,
-      linewidth: width,
-      transparent: false,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    mat.resolution.set(window.innerWidth, window.innerHeight);
-    trailMaterials.push(mat);
-
-    const line = new Line2(new LineGeometry(), mat);
-    line.renderOrder = order;
-    line.frustumCulled = false;
-    group.add(line);
+  const mat = new LineMaterial({
+    color,
+    linewidth: TRAIL_WIDTH,
+    transparent: false,
+    depthWrite: false,
+    toneMapped: false,   // blending stays off, so the map can't tint the line
   });
+  mat.resolution.set(window.innerWidth, window.innerHeight);
+  trailMaterials.push(mat);
 
-  (getEarthMesh() || scene).add(group);
-  return group;
+  const line = new Line2(new LineGeometry(), mat);
+  line.name = name;
+  line.frustumCulled = false;
+  (getEarthMesh() || scene).add(line);
+  return line;
 }
 
 function createTrailLines() {
@@ -171,18 +161,16 @@ export function updateTrails(pastPoints, futurePoints) {
   }
 }
 
-function setTrailGeometry(group, points) {
+function setTrailGeometry(line, points) {
   // Points are 3D positions, so the anti-meridian needs no special handling
   const positions = [];
   for (const p of points) {
     const pos = latLonAltToXYZ(p.lat, p.lon, p.alt_km + 10); // +10km offset above surface
     positions.push(pos.x, pos.y, pos.z);
   }
-  group.children.forEach(line => {
-    line.geometry.dispose();
-    line.geometry = new LineGeometry();
-    line.geometry.setPositions(positions);
-  });
+  line.geometry.dispose();
+  line.geometry = new LineGeometry();
+  line.geometry.setPositions(positions);
 }
 
 // ── ISS Position Update ──────────────────────────────────────────────────────

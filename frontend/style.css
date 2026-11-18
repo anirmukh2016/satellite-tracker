@@ -12,6 +12,8 @@
   --accent: #4af;
   --accent2: #f90;
   --accent3: #00ff44;
+  --trail-past: #ff8a00;   /* keep in sync with COLOR_PAST in iss.js */
+  --trail-future: #00e5ff; /* keep in sync with COLOR_FUTURE in iss.js */
   --text: #c8d8f0;
   --text-dim: #6880a0;
   --green: #4f8;
@@ -231,12 +233,12 @@ html, body {
 
 .toggle-btn .color-dot-eci { background: #44aaff; }
 .toggle-btn .color-dot-ecef { background: #ff6644; }
-.toggle-btn .color-dot-trail { background: var(--accent2); }
-.toggle-btn .color-dot-future { background: #00e5ff; }
+.toggle-btn .color-dot-trail { background: var(--trail-past); }
+.toggle-btn .color-dot-future { background: var(--trail-future); }
 .toggle-btn.active .color-dot-eci,
 .toggle-btn.active .color-dot-ecef,
-.toggle-btn.active .color-dot-trail,
-.toggle-btn.active .color-dot-future { box-shadow: 0 0 6px currentColor; }
+.toggle-btn.active .color-dot-trail  { box-shadow: 0 0 6px var(--trail-past); }
+.toggle-btn.active .color-dot-future { box-shadow: 0 0 6px var(--trail-future); }
 
 /* ── TLE Panel (bottom-left) ─────────────────────────────────────────────── */
 #tle-panel {
