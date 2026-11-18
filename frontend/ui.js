@@ -1,7 +1,8 @@
 /**
- * ui.js — HUD panel, TLE display, toggle controls, WebSocket management
+ * ui.js — HUD panel, TLE display, toggle controls, live tracking loop
  *
- * Connects to the backend WebSocket and distributes data to:
+ * The ISS position is computed right here in the browser (see orbit.js) from
+ * a TLE fetched from /api/tle. Every 2 seconds the fresh state is distributed to:
  *   - HUD: lat, lon, alt, speed, UTC time
  *   - ISS module: position update
  *   - Globe: GMST for Earth rotation
@@ -13,19 +14,20 @@ import { updateISSPosition, updateTrails, setTrailsVisible } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS } from './globe.js';
 import { setECIVisible, setECEFVisible, isECIVisible, isECEFVisible,
          updateECEFRotation, updateGMSTIndicator } from './frames.js';
+import { makeSatrec, getFullState, computeOrbitTrail,
+         parseTLEEpoch, parseTLEParams, tleEpochDate } from './orbit.js';
 
-const WS_URL      = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
-const ORBIT_URL   = '/api/orbit';
-const TLE_URL     = '/api/tle';
-const WS_STALE_MS = 5000; // 2s send cadence + margin for jitter
+const TLE_URL        = '/api/tle';
+const TICK_MS        = 2000;            // position update cadence
+const TLE_MAX_AGE_MS = 3600_000;        // refetch the TLE hourly (edge-cached anyway)
+const TLE_STALE_DAYS = 14;              // warn when the TLE epoch is older than this
 
-let ws = null;
-let reconnectTimer = null;
+let tle = null;            // { name, line1, line2, satrec, fetchedAt }
+let tickTimer = null;
 let orbitRefreshTimer = null;
 let initialCameraSet = false;
 let hiddenAt = null;
 let latestState = null;
-let lastMessageAt = Date.now();
 
 // Toggle states
 let showPastTrail   = true;
@@ -33,17 +35,18 @@ let showFutureTrail = true;
 let showECI         = false;
 let showECEF        = false;
 
-export function initUI() {
+export async function initUI() {
   setupToggleButtons();
   setupCollapsibles();
-  connectWebSocket();
-  loadTLEInfo();
-  scheduleOrbitRefresh();
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  // Fallback: hide loading screen after 5s regardless of WS state
-  // so the 3D globe is always visible even if backend has issues
+  // Fallback: hide loading screen after 5s regardless of fetch state
+  // so the 3D globe is always visible even if the TLE source is down
   setTimeout(hideLoading, 5000);
+
+  setConnectionStatus('connecting');
+  await loadTLE();
+  startTracking();
 }
 
 function hideLoading() {
@@ -51,59 +54,37 @@ function hideLoading() {
   if (loading) loading.classList.add('hidden');
 }
 
-// ── WebSocket ────────────────────────────────────────────────────────────────
+// ── Tracking loop ────────────────────────────────────────────────────────────
 
-function connectWebSocket() {
-  setConnectionStatus('connecting');
-
-  ws = new WebSocket(WS_URL);
-
-  ws.onopen = () => {
-    setConnectionStatus('connected');
-    console.log('[WS] Connected to ISS tracker backend');
-    clearTimeout(reconnectTimer);
-    // Hide loading screen as soon as WS connects — globe is ready
-    hideLoading();
-  };
-
-  ws.onmessage = (event) => {
-    lastMessageAt = Date.now();
-    try {
-      const state = JSON.parse(event.data);
-      if (state.error) {
-        console.error('[WS] Backend error:', state.error);
-        setConnectionStatus('error', state.error);
-        return;
-      }
-      handleState(state);
-    } catch (e) {
-      console.error('[WS] Parse error:', e);
-    }
-  };
-
-  ws.onclose = () => {
-    setConnectionStatus('disconnected');
-    console.log('[WS] Disconnected, reconnecting in 3s...');
-    reconnectTimer = setTimeout(connectWebSocket, 3000);
-  };
-
-  ws.onerror = (err) => {
-    console.error('[WS] Error:', err);
-    ws.close();
-  };
+function startTracking() {
+  clearInterval(tickTimer);
+  clearInterval(orbitRefreshTimer);
+  tick();
+  loadOrbitTrail();
+  tickTimer = setInterval(tick, TICK_MS);
+  // Orbit trail slides along with the ISS, so refresh it every minute
+  orbitRefreshTimer = setInterval(loadOrbitTrail, 60_000);
 }
 
-// A WebSocket can report readyState === OPEN long after the underlying
-// connection has actually died (no close event ever fires, especially
-// after long mobile backgrounding). Detach the old socket's handlers
-// before closing it so its onclose can't race with the new connection.
-function forceReconnect() {
-  if (ws) {
-    ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
-    ws.close();
+function tick() {
+  if (!tle) {
+    // Initial fetch failed — keep retrying until we have a TLE
+    loadTLE();
+    return;
   }
-  clearTimeout(reconnectTimer);
-  connectWebSocket();
+  if (Date.now() - tle.fetchedAt > TLE_MAX_AGE_MS) loadTLE(); // refresh in background
+  try {
+    handleState(getFullState(tle.satrec));
+    const ageDays = (Date.now() - tleEpochDate(tle.line1).getTime()) / 86_400_000;
+    if (ageDays > TLE_STALE_DAYS) {
+      setConnectionStatus('error', `TLE is ${Math.floor(ageDays)} days old — positions may be inaccurate`);
+    } else {
+      setConnectionStatus('connected');
+    }
+  } catch (e) {
+    console.error('[SGP4] Propagation error:', e);
+    setConnectionStatus('error', e.message);
+  }
 }
 
 function handleState(state) {
@@ -111,6 +92,7 @@ function handleState(state) {
   if (!initialCameraSet) {
     initialCameraSet = true;
     pointCameraAtISS(state.lat, state.lon, state.alt_km, state.gmst_rad || 0);
+    hideLoading();
   }
   updateHUD(state);
   updateISSPosition(state);
@@ -241,33 +223,42 @@ function setupCollapsible(headerId, contentId) {
 
 // ── TLE Info ─────────────────────────────────────────────────────────────────
 
-async function loadTLEInfo() {
+async function loadTLE() {
   try {
     const res  = await fetch(TLE_URL);
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-    // Display raw TLE lines
-    const el = document.getElementById('tle-lines');
-    if (el) {
-      el.innerHTML = `
-        <div class="tle-line name">${escapeHtml(data.name || 'ISS (ZARYA)')}</div>
-        <div class="tle-line">${escapeHtml(data.line1 || '')}</div>
-        <div class="tle-line">${escapeHtml(data.line2 || '')}</div>
-      `;
-    }
-
-    // Display parsed parameters
-    const p = data.params || {};
-    setTLEParam('tle-epoch',      data.epoch     || '—');
-    setTLEParam('tle-incl',       `${(p.inclination_deg || 0).toFixed(4)}°`);
-    setTLEParam('tle-period',     `${(p.period_minutes || 0).toFixed(2)} min`);
-    setTLEParam('tle-ecc',        (p.eccentricity || 0).toFixed(6));
-    setTLEParam('tle-raan',       `${(p.raan_deg || 0).toFixed(4)}°`);
-    setTLEParam('tle-motion',     `${(p.mean_motion_rev_per_day || 0).toFixed(4)} rev/day`);
-
+    tle = {
+      name: data.name, line1: data.line1, line2: data.line2,
+      satrec: makeSatrec(data.line1, data.line2),
+      fetchedAt: Date.now(),
+    };
+    showTLEInfo(tle);
   } catch (e) {
-    console.error('[TLE] Failed to load TLE info:', e);
+    // Keep using the previous TLE if we have one; otherwise tick() will retry.
+    console.error('[TLE] Failed to load TLE:', e);
+    if (!tle) setConnectionStatus('error', 'could not fetch TLE');
   }
+}
+
+function showTLEInfo({ name, line1, line2 }) {
+  const el = document.getElementById('tle-lines');
+  if (el) {
+    el.innerHTML = `
+      <div class="tle-line name">${escapeHtml(name || 'ISS (ZARYA)')}</div>
+      <div class="tle-line">${escapeHtml(line1)}</div>
+      <div class="tle-line">${escapeHtml(line2)}</div>
+    `;
+  }
+
+  const p = parseTLEParams(line1, line2);
+  setTLEParam('tle-epoch',  parseTLEEpoch(line1));
+  setTLEParam('tle-incl',   `${p.inclination_deg.toFixed(4)}°`);
+  setTLEParam('tle-period', `${p.period_minutes.toFixed(2)} min`);
+  setTLEParam('tle-ecc',    p.eccentricity.toFixed(6));
+  setTLEParam('tle-raan',   `${p.raan_deg.toFixed(4)}°`);
+  setTLEParam('tle-motion', `${p.mean_motion_rev_per_day.toFixed(4)} rev/day`);
 }
 
 function setTLEParam(id, value) {
@@ -279,33 +270,20 @@ function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── Orbit Trail Loading ──────────────────────────────────────────────────────
+// ── Orbit Trail ──────────────────────────────────────────────────────────────
 
-async function loadOrbitTrail() {
+function loadOrbitTrail() {
+  if (!tle) return;
   try {
-    const res  = await fetch(ORBIT_URL);
-    const data = await res.json();
-    if (data.past && data.future) {
-      updateTrails(data.past, data.future);
-    }
+    const { past, future } = computeOrbitTrail(tle.satrec);
+    updateTrails(past, future);
   } catch (e) {
-    console.error('[Orbit] Failed to load orbit trail:', e);
+    console.error('[Orbit] Failed to compute orbit trail:', e);
   }
 }
 
-function scheduleOrbitRefresh() {
-  // Load immediately on startup
-  loadOrbitTrail();
-
-  // Refresh every 60 seconds (orbit trail changes as ISS moves)
-  orbitRefreshTimer = setInterval(loadOrbitTrail, 60_000);
-}
-
-// Background tabs throttle/pause setInterval and setTimeout (and browsers
-// can silently kill the WebSocket without ever firing onclose), so a long
-// stint in the background can leave the orbit trail stale and the socket
-// dead. Catch up immediately as soon as the tab is visible again instead of
-// waiting for the next regularly-scheduled timer tick.
+// Background tabs throttle setInterval, so a long stint in the background
+// leaves the display stale. Catch up immediately when the tab is visible again.
 function handleVisibilityChange() {
   if (document.visibilityState === 'hidden') {
     hiddenAt = Date.now();
@@ -315,14 +293,7 @@ function handleVisibilityChange() {
   const hiddenMs = hiddenAt ? Date.now() - hiddenAt : 0;
   hiddenAt = null;
 
-  loadOrbitTrail();
-  clearInterval(orbitRefreshTimer);
-  orbitRefreshTimer = setInterval(loadOrbitTrail, 60_000);
-
-  if (!ws || ws.readyState !== WebSocket.OPEN ||
-      Date.now() - lastMessageAt > WS_STALE_MS) {
-    forceReconnect();
-  }
+  startTracking();   // recompute position + trail now and reset the timers
 
   // Only recenter after a real absence (3min+) — a quick tab switch
   // shouldn't override a view the user deliberately rotated to.
@@ -340,8 +311,7 @@ function setConnectionStatus(state, detail) {
   el.className = state === 'error' ? 'disconnected' : state;
   el.textContent = {
     connected:    '● LIVE — ISS TRACKING ACTIVE',
-    disconnected: '● DISCONNECTED — RECONNECTING...',
     connecting:   '◌ CONNECTING...',
-    error:        `⚠ BACKEND ERROR — ${detail || 'check console'}`,
+    error:        `⚠ ${detail || 'ERROR — check console'}`,
   }[state] || state;
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>ISS Real-Time Tracker — SGP4 Orbit Propagation</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/style.css" />
 
   <!-- Import map: tells the browser how to resolve bare specifiers like 'three'.
        Required because OrbitControls.js and other Three.js addons do
@@ -170,8 +170,8 @@
       </p>
       <br/>
       <p style="color:#6880a0; font-size:10px">
-        Data: Celestrak · Backend: FastAPI + sgp4<br/>
-        Frontend: Three.js r160 · Updates: 2s via WebSocket
+        Data: Celestrak · Orbit math: satellite.js (SGP4) in your browser<br/>
+        Frontend: Three.js r160 · Updates: every 2s
       </p>
     </div>
   </div>
@@ -181,10 +181,10 @@
 
   <!-- ── Main Script ────────────────────────────────────────────────────── -->
   <script type="module">
-    import { initGlobe, startRenderLoop } from '/static/globe.js';
-    import { initISS, animateISS } from '/static/iss.js';
-    import { initFrames, updateAxisLabels } from '/static/frames.js';
-    import { initUI } from '/static/ui.js';
+    import { initGlobe, startRenderLoop } from '/globe.js';
+    import { initISS, animateISS } from '/iss.js';
+    import { initFrames, updateAxisLabels } from '/frames.js';
+    import { initUI } from '/ui.js';
 
     // ── Initialize ──────────────────────────────────────────────────────────
     const canvas = document.getElementById('canvas');
@@ -198,7 +198,7 @@
     // 3. Set up coordinate frame visualizations
     initFrames(scene);
 
-    // 4. Set up UI: HUD, toggles, WebSocket connection
+    // 4. Set up UI: HUD, toggles, live tracking loop
     initUI();
 
     // ── Render Loop ─────────────────────────────────────────────────────────

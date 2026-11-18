@@ -2,16 +2,16 @@
 
 A real-time 3D tracker for the International Space Station using SGP4 orbit propagation, built as a showcase project demonstrating orbital mechanics, coordinate systems, and live satellite tracking.
 
-**Live demo:** https://satellite-tracker-vblj.onrender.com/ (hosted on Render's free tier — the instance spins down after inactivity, so the first load after a while can take ~50 seconds to wake up)
+**Live demo:** deployed on Vercel's free tier — static frontend plus one cached serverless function, so there is no cold-start wait.
 
 ## Quick Start
 
 ```bash
-bash run.sh
+npm start
 # Then open http://localhost:8000
 ```
 
-Requirements: Python 3.12+ (pinned via `.python-version`), [uv](https://docs.astral.sh/uv/), internet connection. `run.sh` runs `uv sync` to install dependencies, then starts the server with `uv run uvicorn backend.main:app --reload --port 8000 --host 0.0.0.0`.
+Requirements: Node 20+ and an internet connection (to fetch the live TLE). No dependencies to install — `npm start` runs a tiny dev server that serves `frontend/` and mounts `api/tle.js` like Vercel does. Run the tests with `npm test`.
 
 ---
 
@@ -88,28 +88,18 @@ Then ECEF → geodetic (lat/lon/alt) via Bowring's iterative method on the WGS84
                 └────────┬────────┘
                          │ HTTPS GET
                 ┌────────▼────────┐
-                │  tle_fetcher.py │  cache with 1h TTL
+                │   api/tle.js    │  Vercel serverless function
+                │  GET /api/tle   │  → raw TLE, edge-cached 1h
                 └────────┬────────┘
-                         │
-                ┌────────▼────────┐
-                │  propagator.py  │  SGP4 → ECI → ECEF → lat/lon/alt
-                └────────┬────────┘
-                         │
-                ┌────────▼────────┐
-                │    main.py      │  FastAPI server
-                │  GET /api/tle   │  → TLE + orbital params
-                │  GET /api/orbit │  → ±30 min trail
-                │  WS  /ws        │  → live position (2s)
-                │  GET /          │  → serves frontend
-                └────────┬────────┘
-                         │ WebSocket
+                         │ fetch (hourly)
                 ┌────────▼────────────────────────────────┐
                 │              Browser                     │
+                │  orbit.js   → SGP4 → ECI → ECEF → lat/lon│
                 │  index.html → Three.js scene             │
                 │  globe.js   → Earth sphere, stars        │
                 │  iss.js     → ISS marker, trails         │
                 │  frames.js  → ECI/ECEF axis arrows       │
-                │  ui.js      → HUD, toggles, WS client    │
+                │  ui.js      → HUD, toggles, 2s tick loop │
                 └─────────────────────────────────────────┘
 ```
 
@@ -119,24 +109,23 @@ Then ECEF → geodetic (lat/lon/alt) via Bowring's iterative method on the WGS84
 
 ```
 satellite-tracker/
-├── backend/
-│   ├── main.py           # FastAPI app, REST endpoints, WebSocket endpoint
-│   ├── propagator.py     # SGP4 + coordinate conversions (heavily commented)
-│   └── tle_fetcher.py    # Celestrak fetch + 1h cache
-├── frontend/
+├── api/
+│   └── tle.js            # Serverless function: TLE from Celestrak (wheretheiss.at fallback)
+├── frontend/             # Static site (Vercel outputDirectory)
 │   ├── index.html        # Single-page app, Three.js ESM imports
-│   ├── blog.html          # Thin shell: fetches & renders blog.md client-side
-│   ├── blog.md             # Blog post content (edit this, not blog.html)
-│   ├── globe.js           # Earth mesh, atmosphere, star field, render loop
-│   ├── iss.js              # ISS marker, orbit trail, hover tooltip
-│   ├── frames.js           # ECI/ECEF coordinate axis visualization
-│   ├── ui.js                # HUD, TLE panel, toggle buttons, WebSocket
-│   └── style.css            # Dark space theme
-├── pyproject.toml        # Dependencies (managed with uv)
-├── uv.lock                # Locked dependency versions
-├── .python-version        # Pinned Python version (3.12)
-├── render.yaml             # Render Blueprint (build/start commands for deploy)
-├── run.sh                   # One-command local startup (uv sync + uvicorn)
+│   ├── orbit.js          # SGP4 + GMST/ECI/ECEF/geodetic math (heavily commented)
+│   ├── vendor/satellite.es.js  # satellite.js v5.0.0 (SGP4 core), vendored
+│   ├── blog.html         # Thin shell: fetches & renders blog.md client-side
+│   ├── blog.md           # Blog post content (edit this, not blog.html)
+│   ├── globe.js          # Earth mesh, atmosphere, star field, render loop
+│   ├── iss.js            # ISS marker, orbit trail, hover tooltip
+│   ├── frames.js         # ECI/ECEF coordinate axis visualization
+│   ├── ui.js             # HUD, TLE panel, toggle buttons, tracking loop
+│   └── style.css         # Dark space theme
+├── scripts/dev-server.js # Local dev server (npm start)
+├── tests/                # node:test suites (npm test)
+├── vercel.json           # outputDirectory + clean URLs
+├── package.json
 └── README.md
 ```
 
@@ -144,12 +133,11 @@ satellite-tracker/
 
 ## Deployment
 
-Deployed on [Render](https://render.com)'s free tier via the Blueprint at [`render.yaml`](render.yaml):
+Deployed on [Vercel](https://vercel.com)'s free (Hobby) tier. Import the repo and deploy — [`vercel.json`](vercel.json) sets `frontend/` as the static output directory and `api/tle.js` is picked up automatically as a serverless function. No build step.
 
-- **Build:** `uv sync --frozen && uv cache prune --ci`
-- **Start:** `uv run uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+Why this fits the free tier: Vercel can't hold WebSockets, so the orbit math runs in the browser instead. The only server call is `/api/tle`, cached at the edge for an hour (`s-maxage=3600`, `stale-if-error`), so function invocations stay in the dozens per day regardless of traffic.
 
-Live at **https://satellite-tracker-vblj.onrender.com/**.
+The previous FastAPI + WebSocket + Render version lives on the `v1` branch.
 
 ---
 
@@ -189,7 +177,7 @@ The globe uses a NASA Blue Marble daymap (`frontend/textures/earth_daymap.jpg`),
 
 A full write-up on the physics and implementation behind this tracker — TLEs, SGP4, ECI/ECEF, WGS84 geodetic conversion, and how it's all wired together — is available at:
 
-**[Tracking the ISS: TLEs, SGP4, and Reference Frames](https://satellite-tracker-vblj.onrender.com/blog)**
+**[Tracking the ISS: TLEs, SGP4, and Reference Frames](/blog)**
 
 Also served locally at `/blog`. To edit the post, just edit [`frontend/blog.md`](frontend/blog.md) — plain Markdown, no HTML/CSS knowledge needed. `frontend/blog.html` is a thin shell that fetches and renders it client-side.
 
@@ -201,12 +189,9 @@ Also served locally at `/blog`. To edit the post, just edit [`frontend/blog.md`]
 |---|---|---|
 | `/` | GET | Frontend (index.html) |
 | `/blog` | GET | Blog post write-up (blog.html) |
-| `/api/tle` | GET | Current TLE + parsed orbital parameters |
-| `/api/orbit` | GET | Orbit trail (±30 min, 30s steps) |
-| `/api/position` | GET | Snapshot of current ISS position |
-| `/ws` | WS | Live position stream (every 2 seconds) |
+| `/api/tle` | GET | Current ISS TLE: `{name, line1, line2, source}` (edge-cached 1h) |
 
-### WebSocket Message Format
+All positions, trails and orbital parameters are computed client-side in [`frontend/orbit.js`](frontend/orbit.js). `getFullState()` returns:
 
 ```json
 {
@@ -225,4 +210,4 @@ Also served locally at `/blog`. To edit the post, just edit [`frontend/blog.md`]
 
 ---
 
-*Built with FastAPI, sgp4, and Three.js. TLE data from Celestrak.*
+*Built with satellite.js (SGP4) and Three.js. TLE data from Celestrak.*

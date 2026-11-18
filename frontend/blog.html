@@ -138,7 +138,7 @@
   </div>
 
   <script>
-    fetch('/static/blog.md')
+    fetch('/blog.md')
       .then(function (res) {
         if (!res.ok) throw new Error('Could not load blog.md (' + res.status + ')');
         return res.text();

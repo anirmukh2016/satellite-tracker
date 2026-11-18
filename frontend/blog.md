@@ -61,7 +61,7 @@ A simple rotation by −GMST around the Z axis converts ECI into ECEF:
 [z_ecef]   [  0       0    1 ] [z_eci]
 ```
 
-The tracker computes GMST on the backend and sends it to the browser alongside every position update, which is also what lets the 3D Earth mesh and the ECEF axis overlay rotate in sync with real time.
+The tracker computes GMST in the browser alongside every position update, which is also what lets the 3D Earth mesh and the ECEF axis overlay rotate in sync with real time.
 
 ## 5. WGS84 Geodetic: Why Lat/Lon Isn't Trivial
 
@@ -69,24 +69,22 @@ ECEF coordinates are Cartesian (x, y, z in km) — useful for math, useless for 
 
 ## 6. Implementation
 
-The tracker is a small FastAPI backend paired with a vanilla Three.js frontend — no bundler, no build step for the frontend, dependencies managed with [uv](https://docs.astral.sh/uv/) on the backend.
+The tracker is a static Three.js site plus one tiny serverless function — no bundler, no build step, and no always-on server. The orbit math runs in your browser.
 
 ```
-Celestrak.org → tle_fetcher.py (1h cache)
-                   → propagator.py (SGP4 → ECI → ECEF → geodetic)
-                        → main.py (FastAPI: REST + WebSocket)
-                             → browser (Three.js: globe, ISS marker, trails, axes)
+Celestrak.org → api/tle.js (edge-cached 1h)
+                   → browser: orbit.js (SGP4 → ECI → ECEF → geodetic)
+                        → Three.js: globe, ISS marker, trails, axes
 ```
 
-- **Backend** — `tle_fetcher.py` fetches and caches the TLE; `propagator.py` is the physics core (SGP4, GMST, ECI/ECEF/geodetic conversions, speed, orbit trail); `main.py` exposes REST endpoints (`/api/tle`, `/api/orbit`, `/api/position`) and a WebSocket at `/ws` that pushes a fresh position every 2 seconds.
-- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop; `iss.js` draws the ISS marker and orange (past)/green (future) orbit trail; `frames.js` renders the ECI/ECEF axis overlay; `ui.js` is the WebSocket client that ties it all together and drives the HUD.
-- **Deployment** — a Render Blueprint (`render.yaml`) runs `uv sync` and starts `uvicorn` directly against the FastAPI app, on Render's free tier.
+- **TLE endpoint** — `api/tle.js` fetches the ISS TLE from Celestrak (falling back to wheretheiss.at) and lets the CDN cache it for an hour, so the upstream sources see roughly one request per hour no matter how many people are watching.
+- **Physics** — `orbit.js` is the physics core: SGP4 (via the vendored satellite.js), GMST, ECI/ECEF/geodetic conversions, speed, and the orbit trail. It recomputes the ISS state every 2 seconds.
+- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop; `iss.js` draws the ISS marker and orange (past)/green (future) orbit trail; `frames.js` renders the ECI/ECEF axis overlay; `ui.js` runs the tracking loop that ties it all together and drives the HUD.
+- **Deployment** — hosted on Vercel's free tier: static files plus the one cached function.
 
 ## 7. Demo
 
-> **Live tracker:** [satellite-tracker-vblj.onrender.com](https://satellite-tracker-vblj.onrender.com/)
->
-> Runs on Render's free tier — the instance spins down after inactivity, so the first load after a while can take ~50 seconds to wake up.
+> **Live tracker:** [open the tracker](/)
 
 What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/green past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
 
@@ -99,4 +97,4 @@ What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker mov
 
 ---
 
-Built with FastAPI, sgp4, and Three.js. TLE data from Celestrak.
+Built with satellite.js (SGP4) and Three.js. TLE data from Celestrak.

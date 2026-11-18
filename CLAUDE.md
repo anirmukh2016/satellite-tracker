@@ -4,64 +4,57 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-**Start the application (recommended):**
 ```bash
-bash run.sh
-```
-This installs Python dependencies and starts the FastAPI server with hot-reload at http://localhost:8000.
-
-**Manual backend start:**
-```bash
-uv sync
-uv run uvicorn backend.main:app --reload --port 8000 --host 0.0.0.0
+npm start      # dev server at http://localhost:8000 (serves frontend/ + mounts api/tle.js)
+npm test       # node:test suites in tests/
 ```
 
-**Production (Render):**
-Deploys via `render.yaml` (Render Blueprint). Build command: `uv sync --frozen && uv cache prune --ci`. Start command:
-```bash
-uv run uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-```
+No dependencies to install, no bundler, no lint config. Node 20+.
 
-There are no test or lint configurations in this project.
+**Production:** Vercel (free tier). `vercel.json` sets `outputDirectory: frontend` and `cleanUrls`; `api/tle.js` is auto-detected as a serverless function. No build step.
+
+The old FastAPI + WebSocket + Render implementation lives on the `v1` branch.
 
 ## Architecture Overview
 
-This is a real-time ISS tracker with a Python FastAPI backend and a vanilla JavaScript/Three.js frontend. The frontend is served as static files by the backend — no separate frontend server or bundler.
+A real-time ISS tracker. It is a static vanilla JavaScript/Three.js site; all orbital math runs in the browser. The only server code is one serverless function that proxies the TLE. (Vercel can't hold WebSockets, which is why propagation moved client-side.)
 
 ### Data Flow
 
 ```
-Celestrak.org → tle_fetcher.py (1h cache) → propagator.py (SGP4 + coordinate math)
-                                                       ↓
-Browser ← WebSocket (2s updates) ← main.py endpoints (/api/tle, /api/orbit, /ws)
+Celestrak.org (fallback: wheretheiss.at) → api/tle.js (edge-cached 1h)
+                                                  ↓
+Browser: ui.js fetches TLE → orbit.js (SGP4 + coordinate math) every 2s
    ↓
 ui.js → distributes data to: globe.js, iss.js, frames.js, HUD
 ```
 
-### Backend (`backend/`)
+### Server (`api/`)
 
-- **`main.py`** — FastAPI app. Serves `frontend/` as static files at `/`. REST endpoints: `/api/tle`, `/api/orbit`, `/api/position`. WebSocket at `/ws` streams position every 2 seconds.
-- **`propagator.py`** — The physics core. SGP4 propagation → ECI → ECEF → geodetic (lat/lon/alt). Also computes GMST for Earth rotation, speed, and orbit trail points.
-- **`tle_fetcher.py`** — Fetches ISS TLE from Celestrak (NORAD ID 25544), caches for 1 hour. Falls back to stale cache on fetch failure.
+- **`tle.js`** — `GET /api/tle` → `{name, line1, line2, source}`. Tries Celestrak, falls back to wheretheiss.at, validates TLE shape. Sends `Cache-Control: s-maxage=3600, stale-while-revalidate, stale-if-error` so Vercel's CDN absorbs traffic; errors are `no-store`.
 
 ### Frontend (`frontend/`)
 
-Uses Three.js r160 via CDN import maps — no npm/bundler involved.
+Uses Three.js r160 via CDN import maps. Assets are served from the site root (`/globe.js`, `/textures/...`).
 
+- **`orbit.js`** — The physics core, ported from the original Python propagator. SGP4 via vendored `vendor/satellite.es.js` (satellite.js v5.0.0); GMST, ECI→ECEF, ECEF→geodetic (Bowring), speed, orbit trail and TLE parsing are written out by hand. `getFullState()` returns the same shape the old WebSocket stream sent.
 - **`index.html`** — Single-page app. Initializes all modules in sequence. Contains HUD, TLE panel, controls panel, and ECI vector display as HTML overlays.
-- **`globe.js`** — 3D scene: Earth sphere (Blue Marble texture, 64-segment), atmosphere, 5000-star field, lighting. Exports `latLonAltToXYZ()` and constants used by other modules. Applies GMST rotation to Earth mesh each frame.
-- **`iss.js`** — ISS marker (glowing sphere composite), orbit trails (orange past, cyan future), smooth interpolation between WebSocket updates, raycaster hover tooltip.
-- **`frames.js`** — ECI (fixed in space) and ECEF (rotates with Earth) axis visualizations with HTML labels projected from 3D to screen space.
-- **`ui.js`** — WebSocket client with auto-reconnect, data distribution to all modules, toggle buttons for trails and coordinate frames, TLE panel population, orbit refresh every 60s.
+- **`globe.js`** — 3D scene: Earth sphere, atmosphere, 5000-star field, lighting. Exports `latLonAltToXYZ()` and constants. Applies GMST rotation to Earth mesh each frame.
+- **`iss.js`** — ISS marker, orbit trails (orange past, cyan future), smooth interpolation between 2s updates, raycaster hover tooltip.
+- **`frames.js`** — ECI (fixed in space) and ECEF (rotates with Earth) axis visualizations with HTML labels.
+- **`ui.js`** — Tracking loop (2s `setInterval` computing state from the cached TLE), hourly TLE refresh, trail refresh every 60s, visibility-change catch-up, toggles, TLE panel, stale-TLE warning (>14 days).
+
+### Tests (`tests/`)
+
+`orbit.test.js` checks the JS propagator against golden values produced by the original Python code; `tle-api.test.js` covers the serverless handler with mocked `fetch`.
 
 ### Coordinate Systems
 
-The app visualizes two reference frames as an educational feature:
 - **ECI** (Earth-Centered Inertial): fixed to stars; SGP4 outputs positions in this frame
 - **ECEF** (Earth-Centered, Earth-Fixed): rotates with Earth; used for lat/lon/alt
 
-The bridge between them is **GMST** (Greenwich Mean Sidereal Time), computed in `propagator.py` and sent to the frontend to rotate the Earth mesh and ECEF axes.
+The bridge is **GMST**, computed in `orbit.js` and used to rotate the Earth mesh and ECEF axes.
 
 ### Scale
 
-1 Three.js unit = 1,000 km. Earth radius is 6.378137 units. All positions from the backend are already in km and divided by `SCALE = 1000` in the frontend.
+1 Three.js unit = 1,000 km. Earth radius is 6.378137 units. Positions from `orbit.js` are in km and divided by `SCALE = 1000` in the frontend.

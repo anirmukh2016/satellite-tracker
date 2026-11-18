@@ -104,7 +104,7 @@ function createEarth() {
   // Fallback: procedural if texture fails to load
   const loader = new THREE.TextureLoader();
   const texture = loader.load(
-    '/static/textures/earth_daymap.jpg',
+    '/textures/earth_daymap.jpg',
     () => { /* loaded */ },
     undefined,
     () => {

@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
-*.pyo
 .env
 .claude/
+.specstory/
+.vercel/
+node_modules/

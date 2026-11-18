@@ -1,0 +1,11 @@
+{
+  "name": "satellite-tracker",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Real-time 3D ISS tracker — SGP4 runs in the browser, hosted on Vercel",
+  "scripts": {
+    "start": "node scripts/dev-server.js",
+    "test": "node --test tests/"
+  },
+  "engines": { "node": ">=20" }
+}
