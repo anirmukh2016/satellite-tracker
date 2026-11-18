@@ -10,7 +10,8 @@
  *   - ECI vector display panel
  */
 
-import { updateISSPosition, updateTrails, setTrailsVisible, setTrailFrame } from './iss.js';
+import { updateISSPosition, updateTrails, setTrailsVisible, setTrailFrame,
+         updateGroundTrack, setGroundVisible } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS } from './globe.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
          updateGMSTIndicator, updateFrameVectors } from './frames.js';
@@ -33,6 +34,7 @@ let latestState = null;
 let showPastTrail   = true;
 let showFutureTrail = true;
 let showInertialTrail = false;
+let showGround      = true;
 let showECI         = false;
 let showECEF        = false;
 
@@ -181,6 +183,12 @@ function setupToggleButtons() {
     return showFutureTrail;
   });
 
+  setupBtn('btn-ground', () => {
+    showGround = !showGround;
+    setGroundVisible(showGround);
+    return showGround;
+  });
+
   setupBtn('btn-trail-frame', () => {
     showInertialTrail = !showInertialTrail;
     setTrailFrame(showInertialTrail ? 'eci' : 'ecef');
@@ -293,6 +301,9 @@ function loadOrbitTrail() {
   try {
     const { past, future } = computeOrbitTrail(tle.satrec);
     updateTrails(past, future);
+    // Ground track: one full orbit (±46 min) at 1-minute steps
+    const ground = computeOrbitTrail(tle.satrec, new Date(), 46, 46, 60);
+    updateGroundTrack(ground.past, ground.future);
   } catch (e) {
     console.error('[Orbit] Failed to compute orbit trail:', e);
   }

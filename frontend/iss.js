@@ -4,6 +4,7 @@
  * Responsibilities:
  *   - ISS 3D marker (low-poly station model + halo ring, constant on-screen size)
  *   - Past trail (orange line) and future trail (cyan line)
+ *   - Ground track (dashed, on the surface), nadir line and visibility footprint
  *   - Hover raycasting for tooltip
  *   - Smooth position interpolation between updates
  */
@@ -12,7 +13,8 @@ import * as THREE from 'three';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
-import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, getEarthMesh } from './globe.js';
+import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, R_EARTH, getEarthMesh } from './globe.js';
+import { footprintCircle } from './orbit.js';
 
 // Colors
 // Trails are drawn opaque and un-tonemapped (no blending), so the colour reads
@@ -70,6 +72,7 @@ export function initISS(threeScene, threeCamera) {
 
   createISSMarker();
   createTrailLines();
+  createGroundLayer();
   setupHoverEvents();
 }
 
@@ -255,6 +258,96 @@ function setTrailGeometry(line, points) {
   line.geometry.setPositions(positions);
 }
 
+// ── Ground track, nadir line, visibility footprint ──────────────────────────
+// The ground track is the orbit projected onto the surface (Earth-fixed, so it
+// rotates with the Earth mesh). The nadir line drops from the ISS to the point
+// beneath it; the footprint is the horizon circle — where the ISS is above the
+// horizon. All opaque and un-tonemapped, like the trails.
+
+const GROUND_ALT_KM = 20;     // clears the 64-segment sphere's chord sag (~8 km)
+const COLOR_GROUND = 0xffffff;
+let groundGroup, groundPast, groundFuture, footprintLine, nadirLine;
+let groundOn = true;
+
+function makeGroundLine(color, dashed) {
+  const mat = new LineMaterial({
+    color, linewidth: TRAIL_WIDTH, transparent: false, depthWrite: false,
+    toneMapped: false, dashed, dashSize: 0.12, gapSize: 0.08,
+  });
+  mat.resolution.set(window.innerWidth, window.innerHeight);
+  trailMaterials.push(mat);
+  const line = new Line2(new LineGeometry(), mat);
+  line.frustumCulled = false;
+  line.visible = false;   // until it has positions
+  groundGroup.add(line);
+  return line;
+}
+
+function setLinePositions(line, points, dashed) {
+  const pos = [];
+  for (const p of points) {
+    const v = latLonAltToXYZ(p.lat, p.lon, GROUND_ALT_KM);
+    pos.push(v.x, v.y, v.z);
+  }
+  line.geometry.dispose();
+  line.geometry = new LineGeometry();
+  line.geometry.setPositions(pos);
+  if (dashed) line.computeLineDistances();
+  line.visible = true;
+}
+
+function createGroundLayer() {
+  groundGroup = new THREE.Group();
+  groundGroup.name = 'ground_layer';
+  (getEarthMesh() || scene).add(groundGroup);
+
+  groundPast    = makeGroundLine(COLOR_PAST, true);
+  groundFuture  = makeGroundLine(COLOR_FUTURE, true);
+  footprintLine = makeGroundLine(COLOR_GROUND, false);
+
+  // Nadir line lives in world space (the ISS position is a world position)
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  nadirLine = new THREE.Line(geom, new THREE.LineDashedMaterial({
+    color: COLOR_GROUND, dashSize: 0.05, gapSize: 0.04, toneMapped: false, depthWrite: false,
+  }));
+  nadirLine.frustumCulled = false;
+  nadirLine.visible = false;
+  scene.add(nadirLine);
+}
+
+/** Ground track from propagated points ({lat, lon}); future is joined to the last past point. */
+export function updateGroundTrack(pastPoints, futurePoints) {
+  if (!groundGroup) return;
+  if (pastPoints && pastPoints.length > 1) setLinePositions(groundPast, pastPoints, true);
+  if (futurePoints && futurePoints.length > 0) {
+    const joined = pastPoints?.length ? [pastPoints[pastPoints.length - 1], ...futurePoints] : futurePoints;
+    setLinePositions(groundFuture, joined, true);
+  }
+}
+
+function updateFootprint(state) {
+  if (!footprintLine) return;
+  setLinePositions(footprintLine, footprintCircle(state.lat, state.lon, state.alt_km), false);
+}
+
+function updateNadir() {
+  if (!nadirLine) return;
+  const a = nadirLine.geometry.attributes.position;
+  const surface = currentPos.clone().setLength(R_EARTH + GROUND_ALT_KM * SCALE);
+  a.setXYZ(0, currentPos.x, currentPos.y, currentPos.z);
+  a.setXYZ(1, surface.x, surface.y, surface.z);
+  a.needsUpdate = true;
+  nadirLine.computeLineDistances();
+  nadirLine.visible = groundOn;
+}
+
+export function setGroundVisible(visible) {
+  groundOn = visible;
+  if (groundGroup) groundGroup.visible = visible;
+  if (nadirLine) nadirLine.visible = visible && positionSet;
+}
+
 // ── ISS Position Update ──────────────────────────────────────────────────────
 
 /**
@@ -266,6 +359,7 @@ function setTrailGeometry(line, points) {
 export function updateISSPosition(state) {
   latestState = state;
   if (isHovering) updateTooltip(state);
+  updateFootprint(state);
 
   // Convert ECEF → world (ECI) by rotating by -GMST around Y.
   // The Earth mesh is rotated by -GMST, so the same rotation maps
@@ -314,6 +408,7 @@ export function animateISS(deltaTime) {
   issGroup.position.copy(currentPos);
 
   issModel.quaternion.slerp(targetQuat, lerpSpeed);
+  updateNadir();
 
   // Constant on-screen size: scale with distance so the marker stays ~ISS_TARGET_PX wide
   const dist = camera.position.distanceTo(currentPos);
