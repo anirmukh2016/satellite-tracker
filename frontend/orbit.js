@@ -106,10 +106,11 @@ export function getFullState(satrec, date = new Date()) {
 function trailPoint(satrec, date) {
   const { rEci } = propagate(satrec, date);
   const { lat, lon, alt } = ecefToGeodetic(eciToEcef(rEci, computeGMST(date)));
-  return { lat: round(lat, 3), lon: round(lon, 3), alt_km: round(alt, 2) };
+  // `eci` is the inertial position, so the UI can draw the orbit in either frame
+  return { lat: round(lat, 3), lon: round(lon, 3), alt_km: round(alt, 2), eci: rEci.map(v => round(v, 1)) };
 }
 
-/** Orbit trail around `center`: {past: [...], future: [...]} of {lat, lon, alt_km}. */
+/** Orbit trail around `center`: {past: [...], future: [...]} of {lat, lon, alt_km, eci}. */
 export function computeOrbitTrail(satrec, center = new Date(),
                                   pastMinutes = 30, futureMinutes = 30, stepSeconds = 30) {
   const step = stepSeconds * 1000;

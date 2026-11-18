@@ -161,12 +161,32 @@ export function updateTrails(pastPoints, futurePoints) {
   }
 }
 
+// Trail frame. 'ecef': the trail is carried round with the Earth (ground-track
+// view — each point is lat/lon/alt, a child of the Earth mesh). 'eci': the true
+// inertial orbit, a fixed ellipse in space (child of the scene, drawn from the
+// ECI vectors; ECI (x,y,z) maps to scene (x, z, -y)).
+let trailFrame = 'ecef';
+
+export function setTrailFrame(frame) {
+  trailFrame = frame;
+  const parent = frame === 'eci' ? scene : (getEarthMesh() || scene);
+  [pastTrailLine, futureTrailLine].forEach(line => line && parent.add(line));
+  if (pastTrailPoints.length)   setTrailGeometry(pastTrailLine, pastTrailPoints);
+  if (futureTrailPoints.length) setTrailGeometry(futureTrailLine, futureTrailPoints);
+}
+
 function setTrailGeometry(line, points) {
   // Points are 3D positions, so the anti-meridian needs no special handling
   const positions = [];
   for (const p of points) {
-    const pos = latLonAltToXYZ(p.lat, p.lon, p.alt_km + 10); // +10km offset above surface
-    positions.push(pos.x, pos.y, pos.z);
+    if (trailFrame === 'eci' && p.eci) {
+      const [x, y, z] = p.eci;
+      const k = (Math.hypot(x, y, z) + 10) / Math.hypot(x, y, z); // +10km above the orbit radius
+      positions.push(x * k * SCALE, z * k * SCALE, -y * k * SCALE);
+    } else {
+      const pos = latLonAltToXYZ(p.lat, p.lon, p.alt_km + 10); // +10km offset above surface
+      positions.push(pos.x, pos.y, pos.z);
+    }
   }
   line.geometry.dispose();
   line.geometry = new LineGeometry();

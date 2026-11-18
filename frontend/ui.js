@@ -10,10 +10,10 @@
  *   - ECI vector display panel
  */
 
-import { updateISSPosition, updateTrails, setTrailsVisible } from './iss.js';
+import { updateISSPosition, updateTrails, setTrailsVisible, setTrailFrame } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS } from './globe.js';
-import { setECIVisible, setECEFVisible, isECIVisible, isECEFVisible,
-         updateECEFRotation, updateGMSTIndicator } from './frames.js';
+import { setECIVisible, setECEFVisible, updateECEFRotation,
+         updateGMSTIndicator, updateFrameVectors } from './frames.js';
 import { makeSatrec, getFullState, computeOrbitTrail,
          parseTLEEpoch, parseTLEParams, tleEpochDate } from './orbit.js';
 
@@ -32,6 +32,7 @@ let latestState = null;
 // Toggle states
 let showPastTrail   = true;
 let showFutureTrail = true;
+let showInertialTrail = false;
 let showECI         = false;
 let showECEF        = false;
 
@@ -99,7 +100,8 @@ function handleState(state) {
   updateEarthRotation(state.gmst_rad);
   updateECEFRotation(state.gmst_rad);
   updateGMSTIndicator(state.gmst_rad);
-  updateECIDisplay(state);
+  updateFrameVectors(state);
+  updateFramePanels(state);
 }
 
 // ── HUD Updates ──────────────────────────────────────────────────────────────
@@ -126,30 +128,36 @@ function setHUDValue(id, html) {
   if (el) el.innerHTML = html;
 }
 
-// ── ECI Vector Display ───────────────────────────────────────────────────────
+// ── ECI / ECEF Data Panels ───────────────────────────────────────────────────
+// Same ISS position vector, two frames: ECI panel shows what SGP4 outputs, the
+// ECEF panel shows it after rotating by GMST (and as lat/lon/alt).
 
-function updateECIDisplay(state) {
-  const panel = document.getElementById('eci-display');
-  if (!panel) return;
+function updateFramePanels(state) {
+  const eciPanel  = document.getElementById('eci-display');
+  const ecefPanel = document.getElementById('ecef-display');
+  const wrapper   = document.getElementById('frame-panels');
+  if (!wrapper) return;
 
-  const visible = showECI || showECEF;
-  panel.classList.toggle('visible', visible);
+  eciPanel?.classList.toggle('visible', showECI);
+  ecefPanel?.classList.toggle('visible', showECEF);
+  wrapper.classList.toggle('visible', showECI || showECEF);
 
-  if (!visible) return;
-
-  const r = state.r_eci || [0, 0, 0];
-  const v = state.v_eci || [0, 0, 0];
-
-  setVecValues('eci-r', r);
-  setVecValues('eci-v', v);
-
-  const gmstEl = document.getElementById('eci-gmst');
-  if (gmstEl) gmstEl.textContent = `${(state.gmst_deg || 0).toFixed(2)}°`;
+  if (showECI) {
+    setVecValues('eci-r', state.r_eci || [0, 0, 0]);
+    setVecValues('eci-v', state.v_eci || [0, 0, 0]);
+    setTLEParam('eci-gmst', `${(state.gmst_deg || 0).toFixed(2)}°`);
+  }
+  if (showECEF) {
+    setVecValues('ecef-r', state.r_ecef || [0, 0, 0]);
+    setTLEParam('ecef-gmst', `${(state.gmst_deg || 0).toFixed(2)}°`);
+    setTLEParam('ecef-geo',
+      `${state.lat.toFixed(2)}°, ${state.lon.toFixed(2)}°, ${state.alt_km.toFixed(0)} km`);
+  }
 }
 
-function setVecValues(prefix, vec) {
+function setVecValues(id, vec) {
   const fmt = (n) => (n >= 0 ? ' ' : '') + n.toFixed(1);
-  const el = document.getElementById(prefix);
+  const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = `
     <div class="vec-row"><span class="vec-axis x">X</span><span class="vec-value">${fmt(vec[0])}</span></div>
@@ -173,15 +181,23 @@ function setupToggleButtons() {
     return showFutureTrail;
   });
 
+  setupBtn('btn-trail-frame', () => {
+    showInertialTrail = !showInertialTrail;
+    setTrailFrame(showInertialTrail ? 'eci' : 'ecef');
+    return showInertialTrail;
+  });
+
   setupBtn('btn-eci', () => {
     showECI = !showECI;
     setECIVisible(showECI);
+    if (latestState) { updateGMSTIndicator(latestState.gmst_rad); updateFramePanels(latestState); }
     return showECI;
   });
 
   setupBtn('btn-ecef', () => {
     showECEF = !showECEF;
     setECEFVisible(showECEF);
+    if (latestState) { updateGMSTIndicator(latestState.gmst_rad); updateFramePanels(latestState); }
     return showECEF;
   });
 }

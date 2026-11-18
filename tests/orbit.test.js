@@ -32,6 +32,9 @@ test('orbit trail matches the Python reference', async () => {
   near(t.past[0].lon, -87.299, 0.005, 'past[0].lon');
   near(t.future[1].lat, -12.2, 0.005, 'future[1].lat');
   near(t.future[1].alt_km, 418.62, 0.05, 'future[1].alt');
+  // inertial position is carried along, and has the radius implied by the altitude (~6798 km)
+  const r = Math.hypot(...t.past[0].eci);
+  near(r, 6378.137 + 420.9, 25, 'past[0] |eci| ≈ Earth radius + alt');
 });
 
 test('TLE parsing matches the Python reference', async () => {

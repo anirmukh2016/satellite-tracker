@@ -14,6 +14,9 @@
   --accent3: #00ff44;
   --trail-past: #ff8a00;   /* keep in sync with COLOR_PAST in iss.js */
   --trail-future: #00e5ff; /* keep in sync with COLOR_FUTURE in iss.js */
+  /* Frame axes — keep in sync with ECI_COLORS / ECEF_COLORS in frames.js */
+  --eci-x: #ff4444;  --eci-y: #44dd44;  --eci-z: #4488ff;
+  --ecef-x: #ffa0a0; --ecef-y: #a0ffa0; --ecef-z: #a0c8ff;
   --text: #c8d8f0;
   --text-dim: #6880a0;
   --green: #4f8;
@@ -231,9 +234,10 @@ html, body {
   box-shadow: 0 0 6px var(--accent);
 }
 
-.toggle-btn .color-dot-eci { background: #44aaff; }
-.toggle-btn .color-dot-ecef { background: #ff6644; }
+.toggle-btn .color-dot-eci { background: conic-gradient(var(--eci-x) 0 33.3%, var(--eci-y) 0 66.6%, var(--eci-z) 0); }
+.toggle-btn .color-dot-ecef { background: conic-gradient(var(--ecef-x) 0 33.3%, var(--ecef-y) 0 66.6%, var(--ecef-z) 0); }
 .toggle-btn .color-dot-trail { background: var(--trail-past); }
+.toggle-btn .color-dot-inertial { background: linear-gradient(90deg, var(--trail-past) 50%, var(--trail-future) 50%); }
 .toggle-btn .color-dot-future { background: var(--trail-future); }
 .toggle-btn.active .color-dot-eci,
 .toggle-btn.active .color-dot-ecef,
@@ -432,26 +436,35 @@ html, body {
   font-size: 11px;
 }
 
-/* ── ECI Vector Display ───────────────────────────────────────────────────── */
-#eci-display {
+/* ── ECI / ECEF data panels ───────────────────────────────────────────────── */
+#frame-panels {
   position: fixed;
-  top: 50%;
+  top: 292px;                       /* below the controls panel */
   right: 16px;
-  transform: translateY(-50%);
+  max-height: calc(100vh - 292px - 72px);
+  overflow-y: auto;
   width: 200px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 50;
+}
+
+#frame-panels.visible { display: flex; }
+
+.frame-panel {
+  display: none;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  z-index: 50;
   padding: 10px 12px;
-  display: none;
 }
 
-#eci-display.visible { display: block; }
+.frame-panel.visible { display: block; }
 
-#eci-display .vec-title {
+.frame-panel .vec-title {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -459,6 +472,28 @@ html, body {
   margin-bottom: 8px;
   padding-bottom: 5px;
   border-bottom: 1px solid var(--border);
+}
+
+.vec-note {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* Axis labels (created once in frames.js, moved each frame) */
+#axis-labels { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
+.axis-label {
+  position: fixed;
+  left: 0;
+  top: 0;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  pointer-events: none;
+  white-space: pre;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  line-height: 1.3;
+  opacity: 0.95;
+  will-change: transform;
 }
 
 .vec-row {
@@ -469,9 +504,12 @@ html, body {
 }
 
 .vec-axis { font-weight: bold; }
-.vec-axis.x { color: #f66; }
-.vec-axis.y { color: #6f6; }
-.vec-axis.z { color: #66f; }
+.vec-axis.x { color: var(--eci-x); }
+.vec-axis.y { color: var(--eci-y); }
+.vec-axis.z { color: var(--eci-z); }
+#ecef-display .vec-axis.x { color: var(--ecef-x); }
+#ecef-display .vec-axis.y { color: var(--ecef-y); }
+#ecef-display .vec-axis.z { color: var(--ecef-z); }
 .vec-value { color: var(--text-dim); }
 
 /* ── Scrollbar styling ────────────────────────────────────────────────────── */
@@ -561,14 +599,18 @@ html, body {
     padding: 4px 10px;
   }
 
-  #eci-display {
+  #frame-panels {
     top: auto;
     bottom: calc(var(--bottom) + 120px);
+    left: var(--left);
     right: var(--right);
-    transform: none;
-    width: calc(50vw - 12px);
-    padding: 8px 10px;
+    max-height: none;
+    overflow: visible;
+    width: auto;
+    flex-direction: row;
+    gap: 8px;
   }
+  .frame-panel { flex: 1; padding: 8px 10px; min-width: 0; }
 
   #tle-panel, #info-panel {
     left: var(--left);
