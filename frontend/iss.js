@@ -267,7 +267,7 @@ function setTrailGeometry(line, points) {
 const GROUND_ALT_KM = 20;     // clears the 64-segment sphere's chord sag (~8 km)
 const COLOR_GROUND = 0xffffff;
 let groundGroup, groundPast, groundFuture, footprintLine, nadirLine;
-let groundOn = true;
+let groundOn = false;   // off by default; toggled from the UI
 
 function makeGroundLine(color, dashed) {
   const mat = new LineMaterial({
@@ -299,6 +299,7 @@ function setLinePositions(line, points, dashed) {
 function createGroundLayer() {
   groundGroup = new THREE.Group();
   groundGroup.name = 'ground_layer';
+  groundGroup.visible = groundOn;
   (getEarthMesh() || scene).add(groundGroup);
 
   groundPast    = makeGroundLine(COLOR_PAST, true);

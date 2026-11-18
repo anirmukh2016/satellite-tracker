@@ -34,7 +34,7 @@ let latestState = null;
 let showPastTrail   = true;
 let showFutureTrail = true;
 let showInertialTrail = false;
-let showGround      = true;
+let showGround      = false;
 let showECI         = false;
 let showECEF        = false;
 
