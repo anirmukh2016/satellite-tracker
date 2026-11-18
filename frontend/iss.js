@@ -21,7 +21,7 @@ import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, getEarthMesh } from './globe.js
 // Keep in sync with --trail-past / --trail-future in style.css.
 const COLOR_PAST   = 0xff8a00;   // orange — where ISS has been
 const COLOR_FUTURE = 0x00e5ff;   // cyan   — predicted future path
-const TRAIL_WIDTH  = 1.5;        // px
+const TRAIL_WIDTH  = 1;          // px
 
 let scene, camera;
 
