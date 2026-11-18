@@ -54,9 +54,9 @@ let isHovering = false;
 
 // Marker sizing: the real ISS is ~109 m, so it is exaggerated and kept a
 // constant number of CSS pixels wide at any zoom.
-const ISS_TARGET_PX = 56;
+const ISS_TARGET_PX = 34;
 const ISS_MIN_SCALE = 0.02;
-const ISS_MAX_SCALE = 4;   // caps the size at max zoom-out so it doesn't dwarf the globe
+const ISS_MAX_SCALE = 2.4;  // caps the size at max zoom-out so it doesn't dwarf the globe
 const PING_PERIOD_S = 2.4;
 
 const MAX_PAST_POINTS = 120;  // 120 × 30s = 60 minutes of history

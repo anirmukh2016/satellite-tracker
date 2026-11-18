@@ -9,7 +9,7 @@ const ROOT = path.join(__dirname, '..', 'frontend');
 const PORT = process.env.PORT || 8000;
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.jpg': 'image/jpeg', '.md': 'text/markdown', '.json': 'application/json',
+  '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.json': 'application/json',
 };
 
 http.createServer((req, res) => {
