@@ -86,7 +86,7 @@ Celestrak.org → api/tle.js (edge-cached 1h)
 
 > **Live tracker:** [open the tracker](/)
 
-What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/cyan past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
+What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/cyan past/future trail, an optional ground track, nadir line and horizon circle on the surface, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
 
 ## 8. Further Work
 
