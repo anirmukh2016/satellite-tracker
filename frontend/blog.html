@@ -151,6 +151,15 @@
 
         var h1 = container.querySelector('h1');
         if (h1) document.title = h1.textContent;
+
+        // Give headings ids (e.g. #3-sgp4-from-snapshot-to-position) so they can be linked to
+        container.querySelectorAll('h2, h3').forEach(function (h) {
+          h.id = h.textContent.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-');
+        });
+        if (location.hash) {
+          var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+          if (target) target.scrollIntoView();
+        }
       })
       .catch(function (err) {
         document.getElementById('post').innerHTML =

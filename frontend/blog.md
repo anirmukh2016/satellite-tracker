@@ -29,15 +29,83 @@ The key numbers, mostly in Line 2:
 
 This tracker fetches a fresh TLE from [Celestrak](https://celestrak.org) (NORAD catalog ID 25544), falling back to [wheretheiss.at](https://wheretheiss.at) when Celestrak is unreachable (it throttles some cloud IP ranges). The result is cached for an hour at the CDN, and the last known-good TLE keeps being served if both sources fail — TLEs only update a couple of times a day, so an hour-old set is still accurate to within a few kilometers. Because SGP4 accuracy degrades as a TLE ages, the tracker shows a warning if the TLE's epoch is more than two weeks old.
 
-## 3. The SGP4 Algorithm
+## 3. SGP4: From Snapshot to Position
 
-A TLE alone is just a snapshot. To know where the ISS *is right now*, or where it will be in 30 minutes, you need to propagate it forward in time. That's what **SGP4** (Simplified General Perturbations 4) does — the standard algorithm NORAD's own TLEs are designed to be used with. It accounts for:
+A TLE is a snapshot: it describes the orbit at one instant, its epoch. To know where the ISS *is right now*, or will be in 30 minutes, you have to carry that snapshot forward in time. **SGP4** (Simplified General Perturbations 4) is the algorithm NORAD's TLEs are built to be used with. It is easiest to understand as a simple idea plus a list of corrections.
 
-- **Earth's oblateness** — the J2, J3, and J4 gravitational harmonic terms, since Earth bulges at the equator rather than being a perfect sphere
-- **Atmospheric drag** — encoded directly in the TLE's BSTAR drag term, which matters a lot at the ISS's relatively low ~400 km altitude
-- **Solar and lunar gravitational perturbations** — smaller effects that matter for longer-range predictions
+### The simple idea: an ellipse
 
-Given a TLE and a target time, SGP4 outputs a position and velocity vector in kilometers and kilometers/second — in the **ECI** reference frame, described next.
+If Earth were a perfect point mass, an orbit would be a fixed ellipse, and six numbers from the TLE would pin it down:
+
+| Describes | Element | ISS value (this TLE) |
+|---|---|---|
+| Size and shape | Mean motion *n* (→ semi-major axis *a*) | 15.494 rev/day (→ a ≈ 6,796 km, about 418 km up) |
+| | Eccentricity *e* | 0.0007363 (almost a circle) |
+| Tilt and orientation | Inclination *i* | 51.6318° |
+| | RAAN Ω — where the orbit crosses the equator heading north | 259.669° |
+| | Argument of perigee ω — where the closest point sits in the orbit | 37.395° |
+| Where you are on it | Mean anomaly *M* — how far round the orbit at the epoch | 322.755° |
+
+To find the position at a later time *t*, move round the ellipse and then orient it in space:
+
+```
+M(t) = M₀ + n·(t − t₀)       steady average sweep round the orbit
+M    = E − e·sin E           Kepler's equation: solve for E
+r    = a·(1 − e·cos E)       distance from Earth's centre
+ν    = 2·atan( √((1+e)/(1−e)) · tan(E/2) )
+                             true anomaly: angle from perigee
+```
+
+The size *a* comes from the period (*a*³ = μ/*n*², with μ ≈ 398,600 km³/s²). The point (*r*, ν) in the orbital plane is then rotated by ω, *i* and Ω into the inertial frame. For the ISS, with *e* this small, *E* is almost equal to *M* and the equation is nearly trivial.
+
+### Why that isn't enough
+
+The real orbit is not a fixed ellipse. Two effects matter most for the ISS:
+
+- **Earth's bulge (J2).** Earth's equatorial radius is about 21 km larger than its polar radius, and that extra mass tugs on the orbit. For an inclined orbit the effect is that the orbital plane slowly turns about Earth's axis (the node "regresses", westward for a prograde orbit):
+
+  ```
+  dΩ/dt ≈ −(3/2) · J₂ · (Rₑ/p)² · n · cos i          J₂ ≈ 1.083 × 10⁻³
+  ```
+
+  For the ISS that works out to **about −4.95° per day**, so the plane makes a full turn in roughly 73 days. SGP4's own output agrees to the digit (−4.952°/day), and you can watch it happen: the TLE panel's RAAN falls by about 5° from one day to the next. The same effect is how sun-synchronous orbits are engineered. J2 also rotates the perigee, and the smaller J3 and J4 terms add tiny periodic wiggles.
+- **Atmospheric drag.** At about 420 km the air is extremely thin but not absent. Drag slowly shrinks the orbit (the ISS loses roughly a couple of kilometres a month, more when the Sun is active, which is why it is periodically re-boosted) and, counter-intuitively, makes it *speed up*: a lower orbit is a faster one. The TLE carries a drag term, B* (about 2.0 × 10⁻⁴ for this TLE), that SGP4 feeds into a simple atmosphere model.
+
+### What SGP4 does about it
+
+SGP4 is an *analytic* theory, not a numerical simulation. It does not step the equations of motion forward in tiny increments; it applies closed-form corrections to the ellipse, in this order:
+
+1. **Initialise once per TLE.** Convert the TLE's mean motion into SGP4's internal mean elements and precompute the constants for the J2 rates and the drag coefficients. (`twoline2satrec` in the code.)
+2. **Secular update to time *t*.** The slow, steady drifts that grow with time: Ω, ω and *M* advance faster or slower because of J2, and *a* and *e* decay because of drag.
+3. **Long-period correction.** Small J3 terms that vary slowly with ω.
+4. **Solve Kepler's equation** with the updated elements to get the position along the orbit.
+5. **Short-period correction.** Small J2 oscillations at the orbital period: the satellite is slightly higher and lower, and slightly ahead or behind, depending on where it is in the orbit.
+6. **Rotate into space** to get the position and velocity vectors, in km and km/s.
+
+### Mean elements, not Kepler's
+
+A trap worth knowing: the TLE numbers are *mean* elements, averaged in SGP4's own convention and fitted by NORAD *using* SGP4. They are not the instantaneous elements of a plain ellipse, so plugging them into the simple Kepler recipe gives the wrong answer. To measure how wrong, I propagated this article's TLE (epoch 17 Nov 2026) both ways, using the plain Kepler steps above with the same elements:
+
+| Time after epoch | Distance between plain Kepler and SGP4 |
+|---|---|
+| 0 | 12 km |
+| 30 min | 11 km |
+| 90 min | 30 km |
+| 1 day | about 470 km |
+
+The 12 km at the epoch comes from the mean-versus-instantaneous difference and the missing short-period terms. The growth after that is mostly the orbit turning: adding *only* J2's drift of Ω and ω to the plain Kepler recipe cuts the one-day error from about 470 km to about 16 km. The lesson is that SGP4 and TLEs are a matched pair, and that most of what SGP4 adds to a fixed ellipse is the slow turning of the orbit.
+
+### Output frame and accuracy
+
+SGP4 outputs in **TEME** ("true equator, mean equinox"), an inertial frame tied to the equator and equinox of the date. The tracker treats it as ECI, and pairing it with GMST to get latitude and longitude is the consistent choice (the leftover, nutation, is around half a kilometre at this altitude). Precise work that compares against a J2000 catalogue would apply a further rotation for precession (about 0.36° since 2000, tens of kilometres at orbital radius).
+
+As commonly cited, SGP4 is accurate to about a kilometre at the TLE's epoch and degrades by roughly 1 to 3 km per day afterwards, mostly *along* the track, because tiny errors in the orbit's timing accumulate. Re-boosts and other manoeuvres make older TLEs wrong outright. That is why the tracker refetches its TLE regularly and warns if the one it has is more than two weeks old.
+
+One more distinction: SGP4 proper handles "near-Earth" orbits, with periods under 225 minutes, which includes the ISS (about 93 minutes). Orbits with longer periods use SDP4, which adds solar and lunar gravity and resonance terms. satellite.js implements both and chooses automatically; for the ISS the Sun and Moon do not enter the calculation.
+
+### In this code
+
+Two calls do all of it: `twoline2satrec(line1, line2)` parses the TLE and runs the initialisation (step 1), and `propagate(satrec, date)` converts the date to minutes since the epoch and runs steps 2 to 6, returning position and velocity (or an error code if, say, the orbit has decayed). The tracker's `orbit.js` wraps these, then does the frame conversions described next.
 
 ## 4. ECI vs. ECEF: The Rotation Problem
 

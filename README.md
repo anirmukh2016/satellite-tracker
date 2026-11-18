@@ -49,12 +49,14 @@ Key numbers in Line 2:
 
 ### SGP4 Algorithm
 
-SGP4 solves the equations of orbital motion accounting for:
-- **Earth's oblateness** (J2, J3, J4 terms) — Earth bulges at equator
-- **Atmospheric drag** — encoded in the BSTAR drag term
-- **Solar/lunar gravity** — for long-term predictions
+SGP4 starts from a simple idea — the orbit is an ellipse described by the TLE's six elements — and applies closed-form corrections for the effects that matter most for the ISS:
+- **Earth's oblateness** (J2, plus small J3/J4 terms) — Earth bulges at the equator, which turns the orbital plane about 5° per day for the ISS
+- **Atmospheric drag** — encoded in the BSTAR drag term; slowly shrinks the orbit
+- **Solar/lunar gravity** — only in the deep-space variant (SDP4, orbital periods ≥ 225 min), so not used for the ISS
 
-Output: **ECI position** [km] and **velocity** [km/s] at any requested time.
+TLE elements are *mean* elements fitted using SGP4, so they must be used with SGP4 rather than a plain Kepler ellipse (the two differ by ~12 km at the epoch and ~470 km after a day). The blog post has the full walkthrough with equations and a worked comparison: [`frontend/blog.md`](frontend/blog.md).
+
+Output: **ECI (TEME) position** [km] and **velocity** [km/s] at any requested time.
 
 ### Coordinate Systems
 
