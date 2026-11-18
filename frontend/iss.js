@@ -3,17 +3,26 @@
  *
  * Responsibilities:
  *   - ISS 3D marker (glowing sprite + mesh)
- *   - Past trail (orange line) and future trail (green line)
+ *   - Past trail (orange line) and future trail (cyan line)
  *   - Hover raycasting for tooltip
  *   - Smooth position interpolation between updates
  */
 
 import * as THREE from 'three';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, getEarthMesh } from './globe.js';
 
 // Colors
-const COLOR_PAST   = new THREE.Color(0xff8800);   // orange — where ISS has been
-const COLOR_FUTURE = new THREE.Color(0x00ff44);   // green — predicted future path
+// Trails are drawn as an opaque, un-tonemapped core over a dark casing, so the
+// colour reads the same over ocean, desert, forest, ice and cloud. Orange vs
+// cyan is also colour-blind safe and avoids the greens/browns of the map.
+const COLOR_PAST   = 0xff8a00;   // orange — where ISS has been
+const COLOR_FUTURE = 0x00e5ff;   // cyan   — predicted future path
+const COLOR_CASING = 0x05080f;   // near-black outline under both trails
+const WIDTH_CORE   = 2.5;        // px
+const WIDTH_CASING = 5.5;        // px
 
 let scene, camera;
 
@@ -106,91 +115,74 @@ function createISSMarker() {
 
 // ── Orbit Trail Lines ────────────────────────────────────────────────────────
 
-function createTrailLines() {
-  // Past trail — orange
-  const pastGeom = new THREE.BufferGeometry();
-  const pastMat  = new THREE.LineBasicMaterial({
-    color: COLOR_PAST,
-    transparent: true,
-    opacity: 0.85,
-    linewidth: 1,  // Note: linewidth >1 only works on WebGL2 with LineMaterial
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  pastTrailLine = new THREE.Line(pastGeom, pastMat);
-  pastTrailLine.name = 'pastTrail';
-  pastTrailLine.frustumCulled = false;
-  (getEarthMesh() || scene).add(pastTrailLine);
+const trailMaterials = [];
 
-  // Future trail — green
-  const futureGeom = new THREE.BufferGeometry();
-  const futureMat  = new THREE.LineBasicMaterial({
-    color: COLOR_FUTURE,
-    transparent: true,
-    opacity: 0.55,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
+function makeTrail(name, color) {
+  const group = new THREE.Group();
+  group.name = name;
+
+  // Casing first, core on top. Both ignore blending/tone-mapping so the map
+  // beneath can't tint them; depthTest keeps the far side of the Earth hiding them.
+  [[COLOR_CASING, WIDTH_CASING, 1], [color, WIDTH_CORE, 2]].forEach(([c, width, order]) => {
+    const mat = new LineMaterial({
+      color: c,
+      linewidth: width,
+      transparent: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    mat.resolution.set(window.innerWidth, window.innerHeight);
+    trailMaterials.push(mat);
+
+    const line = new Line2(new LineGeometry(), mat);
+    line.renderOrder = order;
+    line.frustumCulled = false;
+    group.add(line);
   });
-  futureTrailLine = new THREE.Line(futureGeom, futureMat);
-  futureTrailLine.name = 'futureTrail';
-  futureTrailLine.frustumCulled = false;
-  (getEarthMesh() || scene).add(futureTrailLine);
+
+  (getEarthMesh() || scene).add(group);
+  return group;
+}
+
+function createTrailLines() {
+  pastTrailLine   = makeTrail('pastTrail', COLOR_PAST);
+  futureTrailLine = makeTrail('futureTrail', COLOR_FUTURE);
+
+  // LineMaterial needs the viewport size to turn pixel widths into geometry
+  window.addEventListener('resize', () => {
+    trailMaterials.forEach(m => m.resolution.set(window.innerWidth, window.innerHeight));
+  });
 }
 
 /**
- * Update the trail lines from server data.
+ * Update the trail lines from the propagated orbit.
  *
  * @param {Array} pastPoints   - [{lat, lon, alt_km}, ...] past positions
  * @param {Array} futurePoints - [{lat, lon, alt_km}, ...] future positions
  */
 export function updateTrails(pastPoints, futurePoints) {
-  if (pastPoints && pastPoints.length > 0) {
+  if (pastPoints && pastPoints.length > 1) {
     pastTrailPoints = pastPoints;
-    setTrailGeometry(pastTrailLine, pastPoints, COLOR_PAST);
+    setTrailGeometry(pastTrailLine, pastPoints);
   }
-  if (futurePoints && futurePoints.length > 0) {
+  if (futurePoints && futurePoints.length > 1) {
     futureTrailPoints = futurePoints;
-    setTrailGeometry(futureTrailLine, futurePoints, COLOR_FUTURE);
+    setTrailGeometry(futureTrailLine, futurePoints);
   }
 }
 
-function setTrailGeometry(line, points, color) {
-  const vertices = [];
-
-  // Group consecutive points into segments, breaking when the satellite
-  // crosses the anti-meridian (large lon jump) to avoid wrap-around lines
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
+function setTrailGeometry(group, points) {
+  // Points are 3D positions, so the anti-meridian needs no special handling
+  const positions = [];
+  for (const p of points) {
     const pos = latLonAltToXYZ(p.lat, p.lon, p.alt_km + 10); // +10km offset above surface
-
-    if (i > 0) {
-      const prev = points[i - 1];
-      const lonDiff = Math.abs(p.lon - prev.lon);
-      if (lonDiff > 180) {
-        // Anti-meridian crossing: insert a break (degenerate segment)
-        vertices.push(pos.x, pos.y, pos.z); // duplicate point for break
-      }
-    }
-    vertices.push(pos.x, pos.y, pos.z);
+    positions.push(pos.x, pos.y, pos.z);
   }
-
-  const buf = new THREE.Float32BufferAttribute(vertices, 3);
-  line.geometry.setAttribute('position', buf);
-  line.geometry.setDrawRange(0, vertices.length / 3);
-  line.geometry.computeBoundingSphere();
-
-  // Fade: gradient along trail using vertex colors
-  const nPts = vertices.length / 3;
-  const colorArr = new Float32Array(nPts * 3);
-  for (let i = 0; i < nPts; i++) {
-    const t = i / Math.max(nPts - 1, 1);
-    colorArr[i * 3]     = color.r * t;
-    colorArr[i * 3 + 1] = color.g * t;
-    colorArr[i * 3 + 2] = color.b * t;
-  }
-  line.geometry.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
-  line.material.vertexColors = true;
-  line.material.needsUpdate  = true;
+  group.children.forEach(line => {
+    line.geometry.dispose();
+    line.geometry = new LineGeometry();
+    line.geometry.setPositions(positions);
+  });
 }
 
 // ── ISS Position Update ──────────────────────────────────────────────────────

@@ -79,14 +79,14 @@ Celestrak.org → api/tle.js (edge-cached 1h)
 
 - **TLE endpoint** — `api/tle.js` fetches the ISS TLE from Celestrak (falling back to wheretheiss.at) and lets the CDN cache it for an hour, so the upstream sources see roughly one request per hour no matter how many people are watching.
 - **Physics** — `orbit.js` is the physics core: SGP4 (via the vendored satellite.js), GMST, ECI/ECEF/geodetic conversions, speed, and the orbit trail. It recomputes the ISS state every 2 seconds.
-- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop; `iss.js` draws the ISS marker and orange (past)/green (future) orbit trail; `frames.js` renders the ECI/ECEF axis overlay; `ui.js` runs the tracking loop that ties it all together and drives the HUD.
+- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop; `iss.js` draws the ISS marker and orange (past)/cyan (future) orbit trail; `frames.js` renders the ECI/ECEF axis overlay; `ui.js` runs the tracking loop that ties it all together and drives the HUD.
 - **Deployment** — hosted on Vercel's free tier: static files plus the one cached function.
 
 ## 7. Demo
 
 > **Live tracker:** [open the tracker](/)
 
-What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/green past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
+What you'll see: the 3D Earth rotating in real sidereal time, the ISS marker moving along its live position, the orange/cyan past/future trail, a HUD with live lat/lon/altitude/speed, the raw TLE panel, and a toggle to overlay the ECI and ECEF axes directly on the globe.
 
 ## 8. Further Work
 

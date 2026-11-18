@@ -232,7 +232,7 @@ html, body {
 .toggle-btn .color-dot-eci { background: #44aaff; }
 .toggle-btn .color-dot-ecef { background: #ff6644; }
 .toggle-btn .color-dot-trail { background: var(--accent2); }
-.toggle-btn .color-dot-future { background: var(--accent3); }
+.toggle-btn .color-dot-future { background: #00e5ff; }
 .toggle-btn.active .color-dot-eci,
 .toggle-btn.active .color-dot-ecef,
 .toggle-btn.active .color-dot-trail,
