@@ -11,8 +11,13 @@
  */
 
 import { updateISSPosition, updateTrails, setTrailsVisible,
-         updateGroundTrack, setGroundVisible, setISSSunlit } from './iss.js';
-import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible } from './globe.js';
+         updateGroundTrack, setGroundVisible, setISSSunlit,
+         setObserverMarker, getISSWorldPosition } from './iss.js';
+import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible,
+         recenterOnISS, getCameraDistance, setCameraDistance, getControls, pickEarth, isHiddenByEarth } from './globe.js';
+import { tleDrift, appendEntry, logToCsv, loadLog, saveLog, loadLastTle, saveLastTle } from './tlelog.js';
+import { TOGGLES as TOGGLE_NAMES, loadSettings, saveSettings, decodeHash, encodeHash } from './settings.js';
+import { initPasses, setSatrec as setPassSatrec, setObserver as setPassObserver, cancelPicking, refresh as refreshPasses } from './passes-ui.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
          updateGMSTIndicator, updateFrameVectors } from './frames.js';
 import { makeSatrec, getFullState, computeOrbitTrail, sunDirectionEci, isInEarthShadow, visibleZoneAngle,
@@ -30,6 +35,11 @@ let initialCameraSet = false;
 let hiddenAt = null;
 let latestState = null;
 
+// Simulated time: the tracker normally shows "now"; the time bar shifts it.
+let simOffsetMs = 0;
+const simNow = () => new Date(Date.now() + simOffsetMs);
+let observer = null;       // {lat, lon} for the pass finder
+
 // Toggle states
 let showPastTrail   = true;
 let showFutureTrail = true;
@@ -40,8 +50,21 @@ let showECI         = false;
 let showECEF        = false;
 
 export async function initUI() {
-  setupToggleButtons();
+  const saved = loadSettings();
+  const fromLink = decodeHash(location.hash);
+  observer = fromLink.observer ?? saved.observer ?? null;
+  if (fromLink.t) simOffsetMs = fromLink.t.getTime() - Date.now();
+  if (saved.cam && !fromLink.on) setCameraDistance(saved.cam);
+
+  setupToggleButtons(fromLink.on ?? saved.on);
+  setupHelpTips();
   setupCollapsibles();
+  setupControlsPanel();
+  setupTleHealth();
+  setupPasses();
+  setupTimebar();
+  setupKeyboard();
+  getControls().addEventListener('end', () => { persist(); updateRecenterHint(); });
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
   // Fallback: hide loading screen after 5s regardless of fetch state
@@ -51,6 +74,7 @@ export async function initUI() {
   setConnectionStatus('connecting');
   await loadTLE();
   startTracking();
+  if (observer) setPassObserver(observer);   // after the TLE is in, so passes can be computed
 }
 
 function hideLoading() {
@@ -78,7 +102,8 @@ function tick() {
   }
   if (Date.now() - tle.fetchedAt > TLE_MAX_AGE_MS) loadTLE(); // refresh in background
   try {
-    handleState(getFullState(tle.satrec));
+    handleState(getFullState(tle.satrec, simNow()));
+    updateRecenterHint();
     const ageDays = (Date.now() - tleEpochDate(tle.line1).getTime()) / 86_400_000;
     if (ageDays > TLE_STALE_DAYS) {
       setConnectionStatus('error', `TLE is ${Math.floor(ageDays)} days old — positions may be inaccurate`);
@@ -188,51 +213,51 @@ function setVecValues(id, vec) {
 }
 
 // ── Toggle Buttons ────────────────────────────────────────────────────────────
+// One table drives the buttons, the keyboard shortcuts, saved settings and share links.
 
-function setupToggleButtons() {
-  setupHelpTips();
-  setupBtn('btn-past-trail', () => {
-    showPastTrail = !showPastTrail;
-    setTrailsVisible(showPastTrail, showFutureTrail);
-    return showPastTrail;
-  });
+const refreshFrames = () => {
+  if (latestState) { updateGMSTIndicator(latestState.gmst_rad); updateFramePanels(latestState); }
+};
 
-  setupBtn('btn-future-trail', () => {
-    showFutureTrail = !showFutureTrail;
-    setTrailsVisible(showPastTrail, showFutureTrail);
-    return showFutureTrail;
-  });
+const TOGGLES = {
+  past:     { btn: 'btn-past-trail',   key: 'p', apply: (on) => { showPastTrail = on;   setTrailsVisible(showPastTrail, showFutureTrail); } },
+  future:   { btn: 'btn-future-trail', key: 'f', apply: (on) => { showFutureTrail = on; setTrailsVisible(showPastTrail, showFutureTrail); } },
+  daynight: { btn: 'btn-daynight',     key: 'd', apply: (on) => { showDayNight = on;    setNightVisible(on); } },
+  zone:     { btn: 'btn-zone',         key: 'z', apply: (on) => { showZone = on;        setZoneVisible(on); } },
+  ground:   { btn: 'btn-ground',       key: 'g', apply: (on) => { showGround = on;      setGroundVisible(on); } },
+  eci:      { btn: 'btn-eci',          key: 'e', apply: (on) => { showECI = on;         setECIVisible(on);  refreshFrames(); } },
+  ecef:     { btn: 'btn-ecef',         key: 'c', apply: (on) => { showECEF = on;        setECEFVisible(on); refreshFrames(); } },
+};
+const toggleState = {};
 
-  setupBtn('btn-daynight', () => {
-    showDayNight = !showDayNight;
-    setNightVisible(showDayNight);
-    return showDayNight;
-  });
+function setToggle(name, on) {
+  const t = TOGGLES[name];
+  toggleState[name] = on;
+  t.apply(on);
+  const btn = document.getElementById(t.btn);
+  btn?.classList.toggle('active', on);
+  btn?.setAttribute('aria-pressed', String(on));
+}
 
-  setupBtn('btn-zone', () => {
-    showZone = !showZone;
-    setZoneVisible(showZone);
-    return showZone;
-  });
+function setupToggleButtons(initiallyOn) {
+  for (const name of TOGGLE_NAMES) {
+    const t = TOGGLES[name];
+    const btn = document.getElementById(t.btn);
+    if (!btn) continue;
+    const label = btn.textContent.trim().replace(/\s+/g, ' ');
+    btn.title = `${label} (${t.key.toUpperCase()})`;
+    const help = btn.parentElement?.querySelector('.help-btn');
+    if (help) help.dataset.help += ` Shortcut: ${t.key.toUpperCase()}.`;
+    btn.addEventListener('click', () => { setToggle(name, !toggleState[name]); persist(); });
+    setToggle(name, initiallyOn.includes(name));
+  }
+}
 
-  setupBtn('btn-ground', () => {
-    showGround = !showGround;
-    setGroundVisible(showGround);
-    return showGround;
-  });
-
-  setupBtn('btn-eci', () => {
-    showECI = !showECI;
-    setECIVisible(showECI);
-    if (latestState) { updateGMSTIndicator(latestState.gmst_rad); updateFramePanels(latestState); }
-    return showECI;
-  });
-
-  setupBtn('btn-ecef', () => {
-    showECEF = !showECEF;
-    setECEFVisible(showECEF);
-    if (latestState) { updateGMSTIndicator(latestState.gmst_rad); updateFramePanels(latestState); }
-    return showECEF;
+function persist() {
+  saveSettings({
+    on: TOGGLE_NAMES.filter(n => toggleState[n]),
+    cam: Math.round(getCameraDistance() * 100) / 100,
+    observer,
   });
 }
 
@@ -282,20 +307,12 @@ function setupHelpTips() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
 }
 
-function setupBtn(id, onClick) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    const active = onClick();
-    btn.classList.toggle('active', active);
-  });
-}
-
 // ── Collapsible Panels ────────────────────────────────────────────────────────
 
 function setupCollapsibles() {
   setupCollapsible('tle-header', 'tle-content');
   setupCollapsible('info-header', 'info-content');
+  setupCollapsible('passes-header', 'passes-content');
 }
 
 function setupCollapsible(headerId, contentId) {
@@ -304,17 +321,30 @@ function setupCollapsible(headerId, contentId) {
   if (!header || !content) return;
   header.classList.add('collapsible-header');
   content.classList.add('collapsible-content');
+  header.setAttribute('role', 'button');
+  header.tabIndex = 0;
 
-  header.addEventListener('click', () => {
+  const close = (h, c) => { c.classList.remove('visible'); h.classList.remove('open'); };
+  const flip = () => {
     const isOpen = content.classList.contains('visible');
-    // On phones the bottom panels are stacked, so keep only one open at a time
-    if (!isOpen && window.matchMedia('(max-width: 640px)').matches) {
-      document.querySelectorAll('.collapsible-content.visible').forEach(c => c.classList.remove('visible'));
-      document.querySelectorAll('.collapsible-header.open').forEach(h => h.classList.remove('open'));
+    if (!isOpen) {
+      // On phones all bottom panels share one stack, so only one is open at a time.
+      // On desktop the two left-hand panels (passes, TLE) grow towards each other.
+      const phone = window.matchMedia('(max-width: 640px)').matches;
+      const sameColumn = ['passes-header', 'tle-header'];
+      document.querySelectorAll('.collapsible-header.open').forEach((h) => {
+        if (phone || (sameColumn.includes(h.id) && sameColumn.includes(headerId))) {
+          close(h, document.getElementById(h.id.replace('-header', '-content')));
+        }
+      });
     }
     content.classList.toggle('visible', !isOpen);
     header.classList.toggle('open', !isOpen);
-  });
+    header.setAttribute('aria-expanded', String(!isOpen));
+    document.body.classList.toggle('sheet-open', !!document.querySelector('.collapsible-header.open'));
+  };
+  header.addEventListener('click', flip);
+  header.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
 }
 
 // ── TLE Info ─────────────────────────────────────────────────────────────────
@@ -325,12 +355,17 @@ async function loadTLE() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-    tle = {
+    const fresh = {
       name: data.name, line1: data.line1, line2: data.line2,
       satrec: makeSatrec(data.line1, data.line2),
       fetchedAt: Date.now(),
     };
+    recordDrift(tle || loadLastTle(), fresh);
+    saveLastTle(fresh);
+    tle = fresh;
     showTLEInfo(tle);
+    renderTleHealth();
+    setPassSatrec(tle.satrec);
   } catch (e) {
     // Keep using the previous TLE if we have one; otherwise tick() will retry.
     console.error('[TLE] Failed to load TLE:', e);
@@ -371,15 +406,19 @@ function escapeHtml(str) {
 function loadOrbitTrail() {
   if (!tle) return;
   try {
-    const { past, future } = computeOrbitTrail(tle.satrec);
+    const now = simNow();
+    const { past, future } = computeOrbitTrail(tle.satrec, now);
     updateTrails(past, future);
     // Ground track: one full orbit (±46 min) at 1-minute steps
-    const ground = computeOrbitTrail(tle.satrec, new Date(), 46, 46, 60);
+    const ground = computeOrbitTrail(tle.satrec, now, 46, 46, 60);
     updateGroundTrack(ground.past, ground.future);
   } catch (e) {
     console.error('[Orbit] Failed to compute orbit trail:', e);
   }
+  renderTleHealth();                                   // keeps the "age" figure fresh
+  if (Date.now() - lastPassRefresh > 5 * 60_000) { lastPassRefresh = Date.now(); refreshPasses(); }
 }
+let lastPassRefresh = Date.now();
 
 // Background tabs throttle setInterval, so a long stint in the background
 // leaves the display stale. Catch up immediately when the tab is visible again.
@@ -402,13 +441,224 @@ function handleVisibilityChange() {
   }
 }
 
+// ── Visualization panel: collapsible (collapsed by default on phones) ───────
+
+function setupControlsPanel() {
+  const panel = document.getElementById('controls');
+  const header = document.getElementById('controls-header');
+  if (!panel || !header) return;
+  const set = (collapsed) => {
+    panel.classList.toggle('collapsed', collapsed);
+    header.setAttribute('aria-expanded', String(!collapsed));
+  };
+  set(window.matchMedia('(max-width: 640px)').matches);
+  const flip = () => set(!panel.classList.contains('collapsed'));
+  header.addEventListener('click', flip);
+  header.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+  });
+}
+
+// ── Time bar: scrub, Live, Recenter, Share ───────────────────────────────────
+
+let timeDebounce = null;
+
+function setSimOffset(ms) {
+  simOffsetMs = Math.abs(ms) < 1000 ? 0 : ms;
+  const slider = document.getElementById('tb-slider');
+  if (slider) slider.value = String(Math.round(simOffsetMs / 60_000));   // pegs at the ends beyond ±3 h
+  renderTimebar();
+  tick();                                                // update the picture now
+  clearTimeout(timeDebounce);
+  timeDebounce = setTimeout(loadOrbitTrail, 150);        // trails follow once scrubbing settles
+}
+
+function offsetText() {
+  const min = Math.round(simOffsetMs / 60_000), a = Math.abs(min);
+  const t = a >= 60 ? `${Math.floor(a / 60)} h ${a % 60 ? `${a % 60} min` : ''}`.trim() : `${a} min`;
+  return `${min < 0 ? '−' : '+'}${t}`;
+}
+
+function renderTimebar() {
+  const sim = simOffsetMs !== 0;
+  document.getElementById('timebar')?.classList.toggle('sim', sim);
+  const label = document.getElementById('tb-label');
+  if (label) label.textContent = sim ? `SIMULATED ${offsetText()}` : 'LIVE';
+  const live = document.getElementById('btn-live');
+  if (live) live.disabled = !sim;
+}
+
+function setupTimebar() {
+  const slider = document.getElementById('tb-slider');
+  slider?.addEventListener('input', () => setSimOffset(Number(slider.value) * 60_000));
+  document.getElementById('btn-live')?.addEventListener('click', () => setSimOffset(0));
+  document.getElementById('btn-recenter')?.addEventListener('click', recenter);
+
+  const share = document.getElementById('btn-share');
+  share?.addEventListener('click', async () => {
+    const hash = encodeHash({
+      on: TOGGLE_NAMES.filter(n => toggleState[n]),
+      t: simOffsetMs !== 0 ? simNow() : null,
+      observer,
+    });
+    const url = location.origin + location.pathname + hash;
+    history.replaceState(null, '', hash);
+    let msg = 'Link copied';
+    try { await navigator.clipboard.writeText(url); } catch { msg = 'Link is in the address bar'; }
+    share.textContent = msg;
+    setTimeout(() => { share.textContent = 'Share'; }, 2000);
+  });
+  if (simOffsetMs !== 0) { const s = document.getElementById('tb-slider'); if (s) s.value = String(Math.round(simOffsetMs / 60_000)); }
+  renderTimebar();
+}
+
+function recenter() {
+  if (!latestState) return;
+  recenterOnISS(latestState.lat, latestState.lon, latestState.alt_km, latestState.gmst_rad || 0);
+  document.getElementById('btn-recenter')?.classList.remove('attn');
+}
+
+/** Nudge the Recenter button when the ISS is hidden behind the Earth. */
+function updateRecenterHint() {
+  const btn = document.getElementById('btn-recenter');
+  if (btn) btn.classList.toggle('attn', isHiddenByEarth(getISSWorldPosition()));
+}
+
+// ── Keyboard shortcuts ───────────────────────────────────────────────────────
+
+function setupKeyboard() {
+  const byKey = {};
+  for (const name of TOGGLE_NAMES) byKey[TOGGLES[name].key] = name;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'Escape') { cancelPicking(); return; }
+    const k = e.key.toLowerCase();
+    if (byKey[k]) { setToggle(byKey[k], !toggleState[byKey[k]]); persist(); return; }
+    if (k === 'r') { recenter(); return; }
+    if (k === 'l') { setSimOffset(0); return; }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      setSimOffset(simOffsetMs + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1) * 60_000);
+    }
+  });
+}
+
+// ── Next passes ──────────────────────────────────────────────────────────────
+
+function setupPasses() {
+  let pickCb = null, down = null;
+  const canvas = document.getElementById('canvas');
+  canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('pointerup', (e) => {
+    if (!pickCb || !down) return;
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;   // that was a drag, not a click
+    const cb = pickCb;
+    cb(pickEarth(e.clientX, e.clientY));
+  });
+
+  initPasses({
+    onObserver: (obs) => { observer = obs; setObserverMarker(obs); persist(); },
+    jumpTo: (date) => {
+      setSimOffset(date.getTime() - Date.now());
+      recenter();
+      if (window.matchMedia('(max-width: 640px)').matches) {           // get the passes sheet out of the way
+        document.getElementById('passes-content')?.classList.remove('visible');
+        document.getElementById('passes-header')?.classList.remove('open');
+      }
+    },
+    requestPick: (cb) => { pickCb = cb; canvas.style.cursor = cb ? 'crosshair' : ''; },
+  });
+}
+
+// ── TLE health: how far the ISS jumps when a fresh TLE arrives ──────────────
+
+let tleLog = [];
+
+function setupTleHealth() {
+  tleLog = loadLog();
+  document.getElementById('th-toggle')?.addEventListener('click', () => {
+    const el = document.getElementById('th-log');
+    if (el) el.hidden = !el.hidden;
+  });
+  document.getElementById('th-csv')?.addEventListener('click', () => {
+    const blob = new Blob([logToCsv(tleLog)], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'iss-tle-corrections.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  renderTleHealth();
+}
+
+/** Compare the previous TLE with the fresh one at the same instant and log the gap. */
+function recordDrift(prevTle, fresh) {
+  if (!prevTle || (prevTle.line1 === fresh.line1 && prevTle.line2 === fresh.line2)) return;   // nothing changed
+  try {
+    const prevSat = prevTle.satrec || makeSatrec(prevTle.line1, prevTle.line2);
+    const now = new Date();
+    const d = tleDrift(prevSat, fresh.satrec, now);
+    tleLog = appendEntry(tleLog, {
+      checkedAt: now.toISOString(),
+      oldEpoch: tleEpochDate(prevTle.line1).toISOString(),
+      newEpoch: tleEpochDate(fresh.line1).toISOString(),
+      ...d,
+    });
+    saveLog(tleLog);
+  } catch (e) {
+    console.warn('[TLE] Could not measure drift (old TLE too stale?):', e.message);
+  }
+}
+
+const REBOOST_KM = 5;   // a correction this large usually means a reboost or a manoeuvre
+
+function renderTleHealth() {
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  if (tle) {
+    const h = (Date.now() - tleEpochDate(tle.line1).getTime()) / 3_600_000;
+    set('th-age', h < 48 ? `${h.toFixed(1)} h` : `${(h / 24).toFixed(1)} days`);
+  }
+  const last = tleLog[tleLog.length - 1];
+  if (last) {
+    const when = new Date(last.checkedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    set('th-last',
+      `${last.total_km.toFixed(2)} km` + (last.total_km > REBOOST_KM ? ' <span class="warn" title="Large correction: possible reboost">⚠</span>' : '') +
+      `<br><span class="tle-param-label">${when} · along ${last.along_km.toFixed(2)}, cross ${last.cross_km.toFixed(2)}, radial ${last.radial_km.toFixed(2)}</span>`);
+  }
+  set('th-spark', sparkline(tleLog.slice(-40).map(e => e.total_km)));
+
+  const toggle = document.getElementById('th-toggle');
+  if (toggle) toggle.textContent = `Log (${tleLog.length})`;
+  const csv = document.getElementById('th-csv');
+  if (csv) csv.disabled = tleLog.length === 0;
+
+  const rows = [...tleLog].reverse().map(e => {
+    const when = new Date(e.checkedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const ageH = (new Date(e.checkedAt) - new Date(e.oldEpoch)) / 3_600_000;
+    return `<tr><td>${when}</td><td>${ageH.toFixed(0)} h</td><td>${e.total_km.toFixed(2)}</td><td>${e.along_km.toFixed(2)}</td><td>${e.cross_km.toFixed(2)}</td><td>${e.radial_km.toFixed(2)}</td></tr>`;
+  }).join('');
+  set('th-log', tleLog.length
+    ? `<table><thead><tr><th>Checked</th><th>Old age</th><th>Total km</th><th>Along</th><th>Cross</th><th>Radial</th></tr></thead><tbody>${rows}</tbody></table>`
+    : '<span class="tle-param-label">No corrections yet. One is logged each time a changed TLE replaces the old one.</span>');
+}
+
+function sparkline(values) {
+  if (values.length < 2) return '';
+  const max = Math.max(...values, 0.001);
+  const pts = values.map((v, i) => `${(i / (values.length - 1) * 100).toFixed(1)},${(28 - (v / max) * 26).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#4af" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
 // ── Connection Status ─────────────────────────────────────────────────────────
 
 function setConnectionStatus(state, detail) {
   const el = document.getElementById('connection-status');
   if (!el) return;
-  el.className = state === 'error' ? 'disconnected' : state;
-  el.textContent = {
+  const sim = state === 'connected' && simOffsetMs !== 0;
+  el.className = sim ? 'simulated' : state === 'error' ? 'disconnected' : state;
+  el.textContent = sim ? `⏱ SIMULATED TIME ${offsetText()}` : {
     connected:    '● LIVE — ISS TRACKING ACTIVE',
     connecting:   '◌ CONNECTING...',
     error:        `⚠ ${detail || 'ERROR — check console'}`,

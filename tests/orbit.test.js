@@ -112,3 +112,51 @@ test('ISS spends a plausible share of an orbit in eclipse; visibility zone is sm
   near(zone * 180 / Math.PI, 12.5, 0.5, '10° elevation zone');
   assert.ok(zone < horizon);
 });
+
+test('look angles: overhead, horizon and compass directions', async () => {
+  const { lookAngles, compass } = await orbit();
+  const up = lookAngles([6378.137 + 420, 0, 0], 0, 0);
+  near(up.el, 90, 1e-6, 'overhead elevation');
+  near(up.range, 420, 1e-6, 'overhead range');
+  const north = lookAngles([6378.137 + 420, 0, 800], 0, 0);   // displaced north
+  near(north.az, 0, 1e-6, 'north azimuth');
+  const east = lookAngles([6378.137 + 420, 800, 0], 0, 0);
+  near(east.az, 90, 1e-6, 'east azimuth');
+  assert.equal(compass(0), 'N');
+  assert.equal(compass(95), 'E');
+  assert.equal(compass(359), 'N');
+});
+
+test('passes over London in 48 h are well-formed', async () => {
+  const { makeSatrec, findPasses, getFullState, lookAngles } = await orbit();
+  const sat = makeSatrec(L1, L2);
+  const passes = findPasses(sat, 51.5, -0.12, DATE, 48);
+  assert.ok(passes.length >= 4 && passes.length <= 14, `pass count ${passes.length}`);
+  for (const p of passes) {
+    assert.ok(p.start < p.peak.time && p.peak.time < p.end, 'start < peak < end');
+    assert.ok(p.peak.el >= 10 && p.peak.el <= 90, 'peak elevation');
+    assert.ok(p.durationS > 60 && p.durationS < 720, `duration ${p.durationS}`);
+  }
+  for (let i = 1; i < passes.length; i++) assert.ok(passes[i].start > passes[i - 1].end, 'sorted, non-overlapping');
+  // The reported peak really is above the horizon at that time
+  const p = passes[0];
+  const s = getFullState(sat, p.peak.time);
+  near(lookAngles(s.r_ecef, 51.5, -0.12).el, p.peak.el, 0.01, 'peak elevation reproducible');
+});
+
+test('visible passes are dusk or dawn ones: sun below -6 deg, ISS sunlit', async () => {
+  const { makeSatrec, findPasses, sunDirectionEci, sunElevationAt, computeGMST, propagate, isInEarthShadow } = await orbit();
+  const sat = makeSatrec(L1, L2);
+  const passes = findPasses(sat, 40, -100, DATE, 24 * 5);
+  const vis = passes.filter(p => p.visible);
+  assert.ok(vis.length > 0 && vis.length < passes.length, 'some, but not all, passes are visible');
+  for (const p of vis) {
+    // At least one instant of the pass satisfies the rule
+    let ok = false;
+    for (let t = p.start.getTime(); t <= p.end.getTime(); t += 15000) {
+      const d = new Date(t), r = propagate(sat, d).rEci, sun = sunDirectionEci(d);
+      if (!isInEarthShadow(r, sun) && sunElevationAt(40, -100, sun, computeGMST(d)) < -6) ok = true;
+    }
+    assert.ok(ok, 'visible pass has a dark-sky, sunlit moment');
+  }
+});

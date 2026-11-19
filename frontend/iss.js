@@ -329,6 +329,25 @@ export function setISSSunlit(sunlit) {
   issShadeTarget = sunlit ? 1 : ISS_ECLIPSE_SHADE;
 }
 
+/** Current world position of the ISS marker (a copy). */
+export function getISSWorldPosition() { return currentPos.clone(); }
+
+// ── Observer marker (for the pass finder) ───────────────────────────────────
+let observerMarker = null;
+
+/** Mark a ground location on the Earth, or clear it with null. */
+export function setObserverMarker(obs) {
+  if (observerMarker) { observerMarker.parent?.remove(observerMarker); observerMarker = null; }
+  if (!obs) return;
+  const m = new THREE.Group();
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xff4fd8, toneMapped: false }));
+  m.add(core);
+  m.position.copy(latLonAltToXYZ(obs.lat, obs.lon, 8));
+  observerMarker = m;
+  (getEarthMesh() || scene).add(m);
+}
+
 export function setGroundVisible(visible) {
   groundOn = visible;
   if (groundGroup) groundGroup.visible = visible;
@@ -367,6 +386,8 @@ export function updateISSPosition(state) {
   }
 
   targetPos.copy(newPos);
+  // A time-scrub (or long absence) moves the ISS thousands of km: jump instead of gliding across the globe
+  if (currentPos.distanceTo(newPos) > 1.2) currentPos.copy(newPos);
 
   // Orient like the real station: nose along velocity, zenith up, truss across
   // the orbit plane. ECI (x, y, z) maps to scene (x, z, -y).

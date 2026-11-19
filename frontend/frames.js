@@ -250,12 +250,28 @@ function isOccludedByEarth(camera, point) {
   return t > 0 && t < dist;
 }
 
+// Panels the labels should not run underneath. Rectangles are cached for a few
+// frames (reading layout every frame for every label would be wasteful).
+const UI_SELECTOR = '#hud, #controls, #timebar, #passes-panel, #tle-panel, #info-panel, #frame-panels.visible, #connection-status';
+let uiRects = [], uiRectsAt = 0;
+function isUnderUI(x, y) {
+  const now = performance.now();
+  if (now - uiRectsAt > 400) {
+    uiRectsAt = now;
+    uiRects = [...document.querySelectorAll(UI_SELECTOR)].map(e => e.getBoundingClientRect());
+  }
+  // The label extends right of and below its anchor; test a point and its far corner
+  return uiRects.some(r => (x > r.left - 4 && x < r.right && y > r.top - 4 && y < r.bottom) ||
+                           (x + 70 > r.left && x + 70 < r.right && y + 12 > r.top && y + 12 < r.bottom));
+}
+
 function placeLabel(el, world, camera, rect) {
   if (isOccludedByEarth(camera, world)) { el.style.display = 'none'; return; }
   _p.copy(world).project(camera);
   if (_p.z > 1 || _p.z < -1) { el.style.display = 'none'; return; }   // behind camera
   const x = rect.left + (_p.x + 1) / 2 * rect.width;
   const y = rect.top  + (-_p.y + 1) / 2 * rect.height;
+  if (isUnderUI(x + 8, y - 8)) { el.style.display = 'none'; return; }
   el.style.display = 'block';
   el.style.transform = `translate(${x + 8}px, ${y - 8}px)`;
 }

@@ -25,6 +25,11 @@ Requirements: Node 20+ and an internet connection (to fetch the live TLE). No de
 - **Day / Night** toggle (on by default): real-time day/night terminator with a twilight band and a HUD line for whether the ISS is sunlit or in Earth's shadow
 - **In-View Zone** toggle: a ring where the ISS is at least 10° above the horizon, filled green only where it could actually be seen right now (dark sky, ISS sunlit)
 - **Ground Track & Nadir** toggle: dashed path of the ISS projected onto the surface (one full orbit) and a line dropping to the point beneath it
+- **Next Passes** (top-left): set a location (device, click on the globe, or typed coordinates) and see the ISS passes over it for the next 48 hours, with peak elevation, direction and a ★ for passes visible to the naked eye. Click a pass to jump to it
+- **Time bar** (top-centre): scrub ±3 hours to watch the terminator, zone and ISS move; **Live** returns to now; **Recenter** eases the camera back to the ISS; **Share** copies a link that restores your toggles, location and time
+- **TLE Health** (in the TLE panel): each time a changed TLE replaces the old one, the position jump is logged (along-track, cross-track, radial) with a sparkline, a table and CSV export, stored in the browser
+- Settings persist between visits; keyboard shortcuts: P F D Z G E C toggle layers, R recenter, L live, ←/→ step time
+- (i) help buttons explain every option; the Visualization panel collapses (collapsed by default on phones)
 
 ---
 
@@ -117,16 +122,20 @@ satellite-tracker/
 ├── api/
 │   └── tle.js            # Serverless function: TLE from Celestrak (wheretheiss.at fallback)
 ├── frontend/             # Static site (Vercel outputDirectory)
-│   ├── index.html        # Single-page app, Three.js ESM imports
+│   ├── index.html        # Single-page app, Three.js ESM imports (import map -> vendor/three)
 │   ├── orbit.js          # SGP4 + GMST/ECI/ECEF/geodetic math (heavily commented)
 │   ├── vendor/satellite.es.js  # satellite.js v5.0.0 (SGP4 core), vendored
 │   ├── vendor/marked.umd.js    # marked v18.1.3 (renders blog.md), vendored
+│   ├── vendor/three/     # Three.js r160 + the few addons used, vendored (no CDN)
 │   ├── blog.html         # Thin shell: fetches & renders blog.md client-side
 │   ├── blog.md           # Blog post content (edit this, not blog.html)
 │   ├── globe.js          # Earth mesh, atmosphere, star field, render loop
 │   ├── iss.js            # ISS marker, orbit trail, hover tooltip
 │   ├── frames.js         # ECI/ECEF coordinate axis visualization
-│   ├── ui.js             # HUD, TLE panel, toggle buttons, tracking loop
+│   ├── ui.js             # HUD, toggles, shortcuts, time bar, tracking loop
+│   ├── passes-ui.js      # Next Passes panel
+│   ├── tlelog.js         # TLE drift measurement + log
+│   ├── settings.js       # saved settings and shareable link encoding
 │   └── style.css         # Dark space theme
 ├── scripts/dev-server.js # Local dev server (npm start)
 ├── tests/                # node:test suites (npm test)

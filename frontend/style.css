@@ -185,7 +185,15 @@ html, body {
   letter-spacing: 0.08em;
   color: var(--accent);
   background: rgba(74, 170, 255, 0.06);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  user-select: none;
 }
+#controls-header:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+#controls-header .chev { transition: transform 0.2s; }
+#controls.collapsed .chev { transform: rotate(-90deg); }
+#controls.collapsed #controls-body { display: none; }
 
 #controls-body {
   padding: 10px 12px;
@@ -209,6 +217,7 @@ html, body {
   font-size: 12px;
   text-align: left;
   width: 100%;
+  gap: 8px;
 }
 
 .toggle-btn:hover {
@@ -223,6 +232,7 @@ html, body {
 }
 
 .toggle-btn .indicator {
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -285,6 +295,101 @@ html, body {
   box-shadow: 0 4px 18px rgba(0,0,0,0.5);
   pointer-events: none;
 }
+
+/* ── Buttons, time bar, passes, TLE health ───────────────────────────────── */
+.mini-btn {
+  padding: 4px 9px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font: 11px var(--font);
+  cursor: pointer;
+}
+.mini-btn:hover:not(:disabled), .mini-btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.mini-btn:disabled { opacity: 0.4; cursor: default; }
+.mini-btn.attn { border-color: var(--accent2); color: var(--accent2); animation: attn 1.2s ease-in-out infinite; }
+@keyframes attn { 50% { box-shadow: 0 0 8px var(--accent2); } }
+
+#timebar {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: clamp(260px, calc(100vw - 560px), 440px);
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tb-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#tb-label { flex: 1; min-width: 90px; font-size: 11px; letter-spacing: 0.04em; color: var(--green); }
+#timebar.sim #tb-label { color: var(--accent2); }
+#tb-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+#connection-status.simulated { background: rgba(255,153,0,0.12); border: 1px solid var(--accent2); color: var(--accent2); }
+
+#passes-panel {
+  position: fixed;
+  top: 244px;
+  left: 16px;
+  width: 256px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  overflow: hidden;
+}
+#passes-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; cursor: pointer; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent);
+  background: rgba(74, 170, 255, 0.06);
+}
+#passes-header:hover { background: rgba(74, 170, 255, 0.1); }
+#passes-header .pp-chevron { transition: transform 0.2s; }
+#passes-header.open .pp-chevron { transform: rotate(180deg); }
+#passes-content { display: none; padding: 10px 12px; max-height: calc(100dvh - 330px); overflow-y: auto; }
+#passes-content.visible { display: block; }
+.pp-loc { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
+.pp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+#pp-form { display: flex; gap: 6px; margin-bottom: 8px; }
+#pp-input {
+  flex: 1; min-width: 0; padding: 4px 7px; font: 11px var(--font); color: var(--text);
+  background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 5px;
+}
+#pp-input:focus { outline: none; border-color: var(--accent); }
+.pp-pass {
+  display: block; width: 100%; text-align: left; margin-bottom: 5px; padding: 6px 8px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); font: 11px/1.45 var(--font); cursor: pointer;
+}
+.pp-pass:hover, .pp-pass:focus-visible { border-color: var(--accent); outline: none; }
+.pp-pass .pp-when { color: var(--accent); }
+.pp-pass .pp-vis { color: #6fe28f; float: right; }
+.pp-pass .pp-dim { color: var(--text-dim); }
+.pp-note { font-size: 10px; color: var(--text-dim); line-height: 1.45; margin-top: 4px; }
+.pp-empty { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
+
+.tle-health { border-bottom: 1px solid var(--border); padding: 10px 12px; font-size: 11px; }
+.tle-health-title { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; margin-bottom: 6px; }
+.tle-param-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+.tle-param-row .warn { color: var(--accent2); }
+#th-spark svg { width: 100%; height: 34px; display: block; margin: 6px 0; }
+.th-actions { display: flex; gap: 6px; }
+#th-log { max-height: 140px; overflow: auto; margin-top: 8px; font-size: 10px; }
+#th-log table { width: 100%; border-collapse: collapse; }
+#th-log th, #th-log td { padding: 2px 4px; text-align: right; white-space: nowrap; }
+#th-log th:first-child, #th-log td:first-child { text-align: left; }
+#th-log th { color: var(--text-dim); font-weight: normal; position: sticky; top: 0; background: #0a1428; }
+kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; color: var(--accent); }
 
 /* ── TLE Panel (bottom-left) ─────────────────────────────────────────────── */
 #tle-panel {
@@ -634,16 +739,34 @@ html, body {
   #controls-body { padding: 8px; }
   .toggle-btn { padding: 9px 8px; font-size: 11px; }
 
+  #timebar {
+    top: auto;
+    transform: none;
+    width: auto;
+    left: var(--left);
+    right: var(--right);
+    bottom: calc(var(--bottom) + 126px);
+  }
+  #passes-panel {
+    top: auto;
+    left: var(--left);
+    right: var(--right);
+    width: auto;
+    bottom: calc(var(--bottom) + 84px);
+  }
+  #passes-content { max-height: 40dvh; }
+  body.sheet-open #connection-status { display: none; }
+
   #connection-status {
     top: auto;
-    bottom: calc(var(--bottom) + 84px);
+    bottom: calc(var(--bottom) + 196px);
     font-size: 10px;
     padding: 4px 10px;
   }
 
   #frame-panels {
     top: auto;
-    bottom: calc(var(--bottom) + 120px);
+    bottom: calc(var(--bottom) + 232px);
     left: var(--left);
     right: var(--right);
     max-height: none;

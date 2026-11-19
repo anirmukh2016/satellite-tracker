@@ -191,3 +191,88 @@ export function parseTLEParams(line1, line2) {
     period_minutes: round(1440 / meanMotion, 2),
   };
 }
+
+// ── Observer passes ──────────────────────────────────────────────────────────
+
+/** WGS84 ECEF position [km] of a ground point. */
+export function observerEcef(latDeg, lonDeg, altKm = 0) {
+  const a = 6378.137, f = 1 / 298.257223563, e2 = 2 * f - f * f;
+  const lat = latDeg * DEG, lon = lonDeg * DEG;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
+  return [(N + altKm) * Math.cos(lat) * Math.cos(lon),
+          (N + altKm) * Math.cos(lat) * Math.sin(lon),
+          (N * (1 - e2) + altKm) * Math.sin(lat)];
+}
+
+/**
+ * Where a satellite at ECEF position `rEcef` appears from a ground point:
+ * azimuth (deg clockwise from north), elevation (deg) and range (km).
+ */
+export function lookAngles(rEcef, latDeg, lonDeg, altKm = 0) {
+  const o = observerEcef(latDeg, lonDeg, altKm);
+  const d = [rEcef[0] - o[0], rEcef[1] - o[1], rEcef[2] - o[2]];
+  const lat = latDeg * DEG, lon = lonDeg * DEG;
+  const sl = Math.sin(lat), cl = Math.cos(lat), so = Math.sin(lon), co = Math.cos(lon);
+  const east  = -so * d[0] + co * d[1];
+  const north = -sl * co * d[0] - sl * so * d[1] + cl * d[2];
+  const up    =  cl * co * d[0] + cl * so * d[1] + sl * d[2];
+  const range = Math.hypot(east, north, up);
+  return {
+    az: ((Math.atan2(east, north) / DEG) + 360) % 360,
+    el: Math.asin(up / range) / DEG,
+    range,
+  };
+}
+
+/** Sun elevation (deg) at a ground point, from the sun's ECI direction and GMST. */
+export function sunElevationAt(latDeg, lonDeg, sunDirEci, gmst) {
+  const s = eciToEcef(sunDirEci, gmst);
+  const lat = latDeg * DEG, lon = lonDeg * DEG;
+  const up = [Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)];
+  return Math.asin(s[0] * up[0] + s[1] * up[1] + s[2] * up[2]) / DEG;
+}
+
+/**
+ * Upcoming passes of the satellite over a ground point, found by stepping
+ * through time and tracking when it is above the horizon.
+ *
+ * Each pass: {start, end, peak: {time, el, az}, startAz, endAz, durationS, visible}
+ * (times are Dates). Passes whose peak elevation is below `minPeakEl` are skipped.
+ * `visible` means that, at some moment above 10° elevation, the ISS was in
+ * sunlight while the observer's sky was dark (Sun below −6°) — the naked-eye rule.
+ */
+export function findPasses(satrec, latDeg, lonDeg, from = new Date(), hours = 48,
+                           { stepSec = 15, minPeakEl = 10 } = {}) {
+  const passes = [];
+  const end = from.getTime() + hours * 3600_000;
+  let cur = null;
+
+  for (let t = from.getTime(); t <= end; t += stepSec * 1000) {
+    const date = new Date(t);
+    let rEci;
+    try { ({ rEci } = propagate(satrec, date)); } catch { continue; }
+    const gmst = computeGMST(date);
+    const la = lookAngles(eciToEcef(rEci, gmst), latDeg, lonDeg);
+
+    if (la.el > 0) {
+      if (!cur) cur = { start: date, startAz: la.az, peak: { time: date, el: la.el, az: la.az }, visible: false };
+      if (la.el > cur.peak.el) cur.peak = { time: date, el: la.el, az: la.az };
+      cur.endAz = la.az; cur.end = date;
+      if (la.el >= 10 && !cur.visible) {
+        const sun = sunDirectionEci(date);
+        if (!isInEarthShadow(rEci, sun) && sunElevationAt(latDeg, lonDeg, sun, gmst) < -6) cur.visible = true;
+      }
+    } else if (cur) {
+      if (cur.peak.el >= minPeakEl) passes.push({ ...cur, durationS: (cur.end - cur.start) / 1000 });
+      cur = null;
+    }
+  }
+  if (cur && cur.peak.el >= minPeakEl) passes.push({ ...cur, durationS: (cur.end - cur.start) / 1000 });
+  return passes;
+}
+
+/** Compass point name for an azimuth in degrees. */
+export function compass(az) {
+  return ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+    [Math.round(az / 22.5) % 16];
+}

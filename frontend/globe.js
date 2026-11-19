@@ -360,6 +360,7 @@ export function updateEarthRotation(gmst_rad) {
  * Keeps the same orbital distance but points the camera directly at the ISS.
  */
 export function pointCameraAtISS(lat, lon, alt_km, gmst_rad) {
+  recenterAnim = null;
   // Compute ISS world-space position (mirrors the formula in iss.js)
   const ecef = latLonAltToXYZ(lat, lon, alt_km);
   const cosG = Math.cos(gmst_rad);
@@ -377,6 +378,76 @@ export function pointCameraAtISS(lat, lon, alt_km, gmst_rad) {
     (wz / len) * dist
   );
   controls.update();
+}
+
+/** World position of an ISS at lat/lon/alt (the Earth mesh is rotated by GMST). */
+function issWorldPosition(lat, lon, alt_km, gmst_rad) {
+  const e = latLonAltToXYZ(lat, lon, alt_km);
+  const c = Math.cos(gmst_rad), s = Math.sin(gmst_rad);
+  return new THREE.Vector3(e.x * c + e.z * s, e.y, -e.x * s + e.z * c);
+}
+
+let recenterAnim = null;
+
+/**
+ * Ease the camera round to look at the ISS, keeping its distance. The camera
+ * moves along the sphere (a spherical slerp of its direction) in ~0.7 s.
+ */
+export function recenterOnISS(lat, lon, alt_km, gmst_rad) {
+  const dist = camera.position.length();
+  const from = camera.position.clone().normalize();
+  const to = issWorldPosition(lat, lon, alt_km, gmst_rad).normalize();
+  const angle = from.angleTo(to);
+  if (angle < 1e-3) return;
+  const axis = new THREE.Vector3().crossVectors(from, to);
+  if (axis.lengthSq() < 1e-12) axis.set(0, 1, 0); else axis.normalize();
+  const start = performance.now(), DURATION = 700;
+  const myAnim = recenterAnim = {};
+  const step = (now) => {
+    if (recenterAnim !== myAnim) return;                     // superseded or cancelled
+    const k = Math.min(1, (now - start) / DURATION);
+    const e = k * k * (3 - 2 * k);                           // smoothstep
+    camera.position.copy(from).applyAxisAngle(axis, angle * e).multiplyScalar(dist);
+    controls.update();
+    if (k < 1) requestAnimationFrame(step); else recenterAnim = null;
+  };
+  requestAnimationFrame(step);
+}
+
+/** Camera distance from the Earth's centre, in scene units (saved between visits). */
+export function getCameraDistance() { return camera.position.length(); }
+export function setCameraDistance(d) {
+  const clamped = Math.max(controls.minDistance, Math.min(controls.maxDistance, d));
+  camera.position.setLength(clamped);
+  controls.update();
+}
+
+/** Is a world-space point hidden from the camera by the Earth? */
+export function isHiddenByEarth(p) {
+  const c = camera.position;
+  const d = p.clone().sub(c);
+  const L = d.length();
+  d.divideScalar(L);
+  const t = -c.dot(d);
+  if (t <= 0 || t >= L) return false;
+  return c.clone().addScaledVector(d, t).length() < R_EARTH;
+}
+
+/** Lat/lon under a screen point, or null if the click misses the Earth. */
+export function pickEarth(clientX, clientY) {
+  if (!earthMesh) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1,
+                                -((clientY - rect.top) / rect.height) * 2 + 1);
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObject(earthMesh, false)[0];
+  if (!hit) return null;
+  const p = earthMesh.worldToLocal(hit.point.clone());       // Earth-fixed coordinates
+  return {
+    lat: THREE.MathUtils.radToDeg(Math.asin(p.y / p.length())),
+    lon: THREE.MathUtils.radToDeg(Math.atan2(-p.z, p.x)),
+  };
 }
 
 export function getScene() { return scene; }

@@ -194,6 +194,7 @@ Celestrak.org → api/tle.js (edge-cached 1h)
 - **TLE endpoint** — `api/tle.js` fetches the ISS TLE from Celestrak (falling back to wheretheiss.at), validates it, and lets the CDN cache it for an hour (`s-maxage` plus `stale-if-error`), so the upstream sources see roughly one request per hour no matter how many people are watching.
 - **Physics** — `orbit.js` is the physics core. SGP4 comes from the vendored satellite.js; GMST, ECI→ECEF, ECEF→geodetic (Bowring), speed, orbit and ground-track sampling, the horizon-circle geometry and TLE parsing are written out by hand, because they are the educational part. It recomputes the ISS state every 2 seconds. The same module is checked in Node tests against golden values produced by the project's original Python implementation.
 - **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop. `iss.js` draws the ISS marker (dimmed in eclipse), the trails and the ground layer. The Earth's material is patched in `globe.js` with a small shader that adds the terminator and the in-view zone. `frames.js` renders the ECI/ECEF axes, equatorial ring, GMST arc and position vector. `ui.js` runs the tracking loop that ties it all together and drives the HUD, the toggles and the ECI/ECEF data panels.
+- **Passes and drift** — `findPasses()` steps through the next 48 hours at 15-second intervals, turns each ECEF position into azimuth and elevation for the observer, and applies the same sunlit-and-dark rule as the zone. `tlelog.js` propagates the old and new TLE to the same instant whenever a changed TLE arrives and logs the gap in the orbit's own radial, along-track and cross-track directions. Everything runs in the browser; settings and the drift log live in `localStorage`.
 - **The ISS marker** — a small procedural model (truss, solar arrays, modules) rather than a dot. It is exaggerated (the real station is ~109 m) and kept a constant size on screen, and it is oriented like the real thing: nose along the velocity vector, zenith up, truss across the orbit plane — all derived from the ECI position and velocity SGP4 already returns.
 - **Colour that doesn't depend on the map** — trails, axes and rings are opaque lines without blending or tone-mapping, so they read the same over ocean, forest, desert and ice.
 - **Deployment** — hosted on Vercel's free tier: static files plus the one cached function. (An earlier version ran SGP4 on a Python server and streamed positions over a WebSocket; Vercel's serverless functions can't hold WebSockets, and doing the maths in the browser also means zero per-viewer server load.)
@@ -209,11 +210,14 @@ Things to try:
 - **Day / Night** and **In-View Zone** — turn on the zone, then find a moment when the HUD says "Sunlit" and part of the ring is filled green on the dark side of the globe: that is where the ISS is visible.
 - **Ground Track & Nadir** — turn it on, then tilt the globe toward the horizon to see the dashed track hugging the surface and the nadir line.
 - **ECI and ECEF axes** — turn both on to see the solid/dashed axes, the yellow θ arc, the ISS position vector, and the two coordinate panels side by side.
+- **Next Passes** — type your coordinates (or click the globe), then click a ★ pass to jump to it: the time bar moves to the peak and the ISS flies over your marker.
+- **Time bar** — drag the slider to watch the terminator sweep and the zone appear and vanish; share the moment with the **Share** link.
+- **TLE Health** — open the TLE panel to see how far the ISS jumped the last time a fresh TLE replaced the old one. It is almost all along-track, because a tiny error in orbital period accumulates along the orbit; a jump of several km usually means a reboost.
 - **Hover (or tap) the ISS** for its live position, altitude and speed.
 
 ## 10. Further Work
 
-- **Observer-specific passes** — extend the horizon circle to a chosen lat/lon with an elevation mask, and compute upcoming visible passes (sunlit ISS, dark observer) the way apps like Heavens-Above do
+- **Richer passes** — an elevation mask for local horizons, brightness (magnitude) estimates, and a sky-chart view of each pass
 - **Longer ground tracks** — several orbits at once, to show the ~23° westward drift directly
 - **Multi-satellite support** — extend past NORAD 25544 to track any object with a public TLE
 - **Inertial orbit view** — draw several orbits in the inertial frame to show the fixed ellipse while the Earth turns beneath it

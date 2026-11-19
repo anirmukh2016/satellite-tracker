@@ -10,12 +10,12 @@
   <!-- Import map: tells the browser how to resolve bare specifiers like 'three'.
        Required because OrbitControls.js and other Three.js addons do
        `import { ... } from 'three'` internally. Without this the browser throws
-       "Failed to resolve module specifier 'three'". -->
+       "Failed to resolve module specifier 'three'". Three.js r160 is vendored in /vendor/three. -->
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "/vendor/three/build/three.module.js",
+      "three/addons/": "/vendor/three/examples/jsm/"
     }
   }
   </script>
@@ -69,10 +69,46 @@
     <div id="hud-time">—</div>
   </div>
 
+  <!-- ── Time bar (top-centre; bottom on phones) ─────────────────────────── -->
+  <div id="timebar">
+    <div class="tb-row">
+      <span id="tb-label" aria-live="polite">LIVE</span>
+      <button type="button" class="mini-btn" id="btn-recenter" title="Recenter the camera on the ISS (R)">⌖ Recenter</button>
+      <button type="button" class="mini-btn" id="btn-live" title="Back to the present (L)" disabled>Live</button>
+      <button type="button" class="mini-btn" id="btn-share" title="Copy a link to this view">Share</button>
+    </div>
+    <input type="range" id="tb-slider" min="-180" max="180" step="1" value="0"
+           aria-label="Time offset from now, in minutes" />
+  </div>
+
+  <!-- ── Next Passes (top-left, under the HUD; bottom stack on phones) ─── -->
+  <div id="passes-panel">
+    <div id="passes-header">
+      <span class="pp-title">Next Passes</span>
+      <span class="pp-chevron">▲</span>
+    </div>
+    <div id="passes-content">
+      <div class="pp-loc" id="pp-loc">Set your location to see when the ISS flies over.</div>
+      <div class="pp-actions">
+        <button type="button" class="mini-btn" id="pp-geo">Use my location</button>
+        <button type="button" class="mini-btn" id="pp-pick">Pick on globe</button>
+        <button type="button" class="mini-btn" id="pp-clear" hidden>Clear</button>
+      </div>
+      <form id="pp-form">
+        <input id="pp-input" type="text" inputmode="decimal" autocomplete="off"
+               placeholder="lat, lon  e.g. 51.5, -0.12" aria-label="Latitude and longitude" />
+        <button type="submit" class="mini-btn">Set</button>
+      </form>
+      <div id="pp-list"></div>
+      <div class="pp-note">★ Visible: the ISS is sunlit and your sky is dark (Sun below −6°), with the ISS above 10°.
+        Click a pass to jump to it on the globe.</div>
+    </div>
+  </div>
+
   <!-- ── Controls Panel (top-right) ────────────────────────────────────── -->
   <div id="help-tip" role="tooltip" hidden></div>
   <div id="controls">
-    <div id="controls-header">Visualization</div>
+    <div id="controls-header" role="button" tabindex="0" aria-expanded="true" aria-controls="controls-body">Visualization <span class="chev" aria-hidden="true">▾</span></div>
     <div id="controls-body">
       <div class="opt">
         <button class="toggle-btn active" id="btn-past-trail">
@@ -162,6 +198,17 @@
       <div class="tle-lines" id="tle-lines">
         <div class="tle-line name">Loading...</div>
       </div>
+      <div class="tle-health" id="tle-health">
+        <div class="tle-health-title">TLE Health</div>
+        <div class="tle-param-row"><span class="tle-param-label">Age of this TLE</span><span id="th-age">—</span></div>
+        <div class="tle-param-row"><span class="tle-param-label">Last correction</span><span id="th-last">none recorded yet</span></div>
+        <div id="th-spark" aria-hidden="true"></div>
+        <div class="th-actions">
+          <button type="button" class="mini-btn" id="th-toggle">Log (0)</button>
+          <button type="button" class="mini-btn" id="th-csv" disabled>Download CSV</button>
+        </div>
+        <div id="th-log" hidden></div>
+      </div>
       <div class="tle-params">
         <div class="tle-param">
           <div class="tle-param-label">Epoch</div>
@@ -244,6 +291,34 @@
       </p>
       <br/>
       <p>
+        <strong>Time bar:</strong> drag the slider to move up to three hours either
+        way and watch the terminator, the zone and the ISS move. <strong>Live</strong>
+        returns to now; <strong>Share</strong> copies a link that restores your
+        toggles, location and (if you scrubbed) the time.
+      </p>
+      <br/>
+      <p>
+        <strong>Next Passes:</strong> set a location (your device, a click on the
+        globe, or typed coordinates) to list the ISS passes in the next 48 hours:
+        when it rises, its peak height and where in the sky it travels. ★ marks
+        passes you could see with your own eyes.
+      </p>
+      <br/>
+      <p>
+        <strong>TLE Health:</strong> every time a fresh TLE arrives, the tracker
+        compares it with the old one at the same instant. The gap is the error the
+        old TLE had built up, split into along-track, cross-track and radial parts.
+        It is kept in this browser; download it as CSV from the TLE panel.
+      </p>
+      <br/>
+      <p>
+        <strong>Keyboard:</strong> <kbd>P</kbd> past trail · <kbd>F</kbd> future trail ·
+        <kbd>D</kbd> day/night · <kbd>Z</kbd> zone · <kbd>G</kbd> ground track ·
+        <kbd>E</kbd> ECI · <kbd>C</kbd> ECEF · <kbd>R</kbd> recenter ·
+        <kbd>L</kbd> live · <kbd>←</kbd>/<kbd>→</kbd> ±1 min (<kbd>Shift</kbd> ±10).
+      </p>
+      <br/>
+      <p>
         <strong>ECI frame</strong>: fixed to distant stars. SGP4 outputs
         position here. Its axes (solid) never rotate.
       </p>
@@ -267,7 +342,7 @@
       <br/>
       <p style="color:#6880a0; font-size:10px">
         Data: Celestrak (wheretheiss.at fallback) · Orbit math: satellite.js (SGP4) in your browser<br/>
-        Frontend: Three.js r160 · Updates: every 2s
+        Frontend: Three.js r160 (vendored) · Updates: every 2s
       </p>
     </div>
   </div>
