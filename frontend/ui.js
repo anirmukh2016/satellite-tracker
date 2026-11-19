@@ -10,7 +10,7 @@
  *   - ECI vector display panel
  */
 
-import { updateISSPosition, updateTrails, setTrailsVisible, setTrailFrame,
+import { updateISSPosition, updateTrails, setTrailsVisible,
          updateGroundTrack, setGroundVisible, setISSSunlit } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible } from './globe.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
@@ -33,7 +33,6 @@ let latestState = null;
 // Toggle states
 let showPastTrail   = true;
 let showFutureTrail = true;
-let showInertialTrail = false;
 let showGround      = false;
 let showDayNight    = true;
 let showZone        = false;
@@ -220,12 +219,6 @@ function setupToggleButtons() {
     showGround = !showGround;
     setGroundVisible(showGround);
     return showGround;
-  });
-
-  setupBtn('btn-trail-frame', () => {
-    showInertialTrail = !showInertialTrail;
-    setTrailFrame(showInertialTrail ? 'eci' : 'ecef');
-    return showInertialTrail;
   });
 
   setupBtn('btn-eci', () => {

@@ -138,7 +138,6 @@ Toggle the frames on the globe and the difference becomes visible rather than ab
 - **ECI axes are solid and never move; ECEF axes are dashed and ride around with the Earth.** Both use the same colour per axis (X red, Y green, Z blue), so "same axis, different frame" is obvious. ECEF's X-axis is drawn with a dashed prime-meridian arc on the surface, so you can watch Greenwich being carried round.
 - **A yellow arc between ECI-X and ECEF-X is θ**, the GMST angle, labelled with its live value. It grows by 360° every sidereal day.
 - **A white arrow runs from the centre to the ISS.** That is one vector in space; it only *looks* different in the two frames because the axes it is measured against differ. The ECI and ECEF data panels show its components in each frame, and the ECEF panel shows the relation r<sub>ECEF</sub> = R<sub>3</sub>(θ) · r<sub>ECI</sub> with live numbers.
-- **"Trails in ECI"** redraws the orange/cyan altitude trails as the true inertial orbit — a fixed ellipse in space while the Earth turns underneath. By default the trails are drawn in the Earth-fixed frame, where the same orbit is carried around with the planet. Over ±30 minutes the two differ by only ~7.5° of Earth rotation, so the effect is subtle; it gets dramatic over several orbits.
 
 ## 5. WGS84 Geodetic: Why Lat/Lon Isn't Trivial
 
@@ -210,7 +209,6 @@ Things to try:
 - **Day / Night** and **In-View Zone** — turn on the zone, then find a moment when the HUD says "Sunlit" and part of the ring is filled green on the dark side of the globe: that is where the ISS is visible.
 - **Ground Track & Nadir** — turn it on, then tilt the globe toward the horizon to see the dashed track hugging the surface and the nadir line.
 - **ECI and ECEF axes** — turn both on to see the solid/dashed axes, the yellow θ arc, the ISS position vector, and the two coordinate panels side by side.
-- **Trails in ECI** — compare the inertial orbit with the Earth-fixed one.
 - **Hover (or tap) the ISS** for its live position, altitude and speed.
 
 ## 10. Further Work
@@ -218,6 +216,7 @@ Things to try:
 - **Observer-specific passes** — extend the horizon circle to a chosen lat/lon with an elevation mask, and compute upcoming visible passes (sunlit ISS, dark observer) the way apps like Heavens-Above do
 - **Longer ground tracks** — several orbits at once, to show the ~23° westward drift directly
 - **Multi-satellite support** — extend past NORAD 25544 to track any object with a public TLE
+- **Inertial orbit view** — draw several orbits in the inertial frame to show the fixed ellipse while the Earth turns beneath it
 - **Follow-Earth camera** — a camera locked to the rotating Earth, to see the inertial frame spin around you
 
 ---

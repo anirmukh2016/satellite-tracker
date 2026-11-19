@@ -110,13 +110,6 @@
         <button type="button" class="help-btn" aria-label="What does Ground Track &amp; Nadir do?" data-help="Dashed line: the ISS ground track, the path on the surface directly beneath it (±46 min). Line down from the ISS: the nadir, pointing straight at the Earth&#x27;s centre.">i</button>
       </div>
       <div class="opt">
-        <button class="toggle-btn" id="btn-trail-frame">
-          Trails in ECI (inertial)
-          <span class="indicator color-dot-inertial"></span>
-        </button>
-        <button type="button" class="help-btn" aria-label="What does Trails in ECI (inertial) do?" data-help="Off: trails are drawn on the spinning Earth, the way the ISS moves over the ground. On: trails are drawn in space, fixed relative to the stars (ECI), where the orbit is a near-perfect ellipse. Over 30 minutes the difference is subtle because the Earth turns only about 7.5°.">i</button>
-      </div>
-      <div class="opt">
         <button class="toggle-btn" id="btn-eci">
           ECI Frame Axes
           <span class="indicator color-dot-eci"></span>
@@ -240,9 +233,7 @@
         <strong>Trails</strong> float at the ISS's altitude:<br/>
         <span style="color:var(--trail-past)">■</span> Past 30 min &nbsp;
         <span style="color:var(--trail-future)">■</span> Future 30 min<br/>
-        By default they are drawn in the Earth-fixed frame. <strong>Trails in ECI</strong>
-        draws the true inertial orbit instead — a fixed ellipse in space while the
-        Earth turns beneath it.
+        They are drawn in the Earth-fixed frame, so they turn with the planet.
       </p>
       <br/>
       <p>

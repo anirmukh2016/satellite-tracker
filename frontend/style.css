@@ -241,7 +241,6 @@ html, body {
 .toggle-btn .color-dot-zone { background: #4fd37f; }
 .toggle-btn.active .color-dot-zone { box-shadow: 0 0 6px #4fd37f; }
 .toggle-btn .color-dot-daynight { background: linear-gradient(90deg, #f5d76e 50%, #1a2650 50%); }
-.toggle-btn .color-dot-inertial { background: linear-gradient(90deg, var(--trail-past) 50%, var(--trail-future) 50%); }
 .toggle-btn .color-dot-future { background: var(--trail-future); }
 .toggle-btn.active .color-dot-eci,
 .toggle-btn.active .color-dot-ecef,

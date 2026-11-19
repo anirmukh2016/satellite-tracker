@@ -25,7 +25,6 @@ Requirements: Node 20+ and an internet connection (to fetch the live TLE). No de
 - **Day / Night** toggle (on by default): real-time day/night terminator with a twilight band and a HUD line for whether the ISS is sunlit or in Earth's shadow
 - **In-View Zone** toggle: a ring where the ISS is at least 10° above the horizon, filled green only where it could actually be seen right now (dark sky, ISS sunlit)
 - **Ground Track & Nadir** toggle: dashed path of the ISS projected onto the surface (one full orbit) and a line dropping to the point beneath it
-- **Trails in ECI** toggle: switch the altitude trails between the Earth-fixed view and the true inertial orbit (a fixed ellipse in space)
 
 ---
 
