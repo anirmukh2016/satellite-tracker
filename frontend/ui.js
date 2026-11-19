@@ -190,6 +190,7 @@ function setVecValues(id, vec) {
 // ── Toggle Buttons ────────────────────────────────────────────────────────────
 
 function setupToggleButtons() {
+  setupHelpTips();
   setupBtn('btn-past-trail', () => {
     showPastTrail = !showPastTrail;
     setTrailsVisible(showPastTrail, showFutureTrail);
@@ -233,6 +234,52 @@ function setupToggleButtons() {
     if (latestState) { updateGMSTIndicator(latestState.gmst_rad); updateFramePanels(latestState); }
     return showECEF;
   });
+}
+
+// ── Help (i) tooltips ────────────────────────────────────────────────────────
+// One shared tooltip element: the controls panel clips overflow, so it can't live inside it.
+
+function setupHelpTips() {
+  const tip = document.getElementById('help-tip');
+  if (!tip) return;
+  let current = null;
+
+  const hide = () => {
+    tip.hidden = true;
+    if (current) current.classList.remove('open');
+    current = null;
+  };
+  const show = (btn) => {
+    if (current) current.classList.remove('open');
+    current = btn;
+    btn.classList.add('open');
+    tip.textContent = btn.dataset.help;
+    tip.hidden = false;
+    const r = btn.getBoundingClientRect();
+    const panel = document.getElementById('controls').getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight, m = 12;
+    // Desktop: to the left of the panel. If that doesn't fit (phones), below the row.
+    let left = panel.left - w - 8, top = r.top + r.height / 2 - h / 2;
+    if (left < m) { left = window.innerWidth - w - m; top = r.bottom + 8; }
+    top = Math.max(m, Math.min(top, window.innerHeight - h - m));
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  };
+
+  document.querySelectorAll('.help-btn').forEach((btn) => {
+    btn.setAttribute('aria-describedby', 'help-tip');
+    const canHover = window.matchMedia('(hover: hover)');
+    btn.addEventListener('mouseenter', () => { if (canHover.matches) show(btn); });
+    btn.addEventListener('mouseleave', () => { if (canHover.matches) hide(); });
+    btn.addEventListener('focus', () => { if (btn.matches(':focus-visible')) show(btn); });  // keyboard only; a tap would focus then toggle off
+    btn.addEventListener('blur', hide);
+    btn.addEventListener('click', (e) => {   // tap toggles on touch screens
+      e.stopPropagation();
+      current === btn && !tip.hidden ? hide() : show(btn);
+    });
+  });
+  document.addEventListener('click', hide);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
 }
 
 function setupBtn(id, onClick) {

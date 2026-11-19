@@ -70,37 +70,59 @@
   </div>
 
   <!-- ── Controls Panel (top-right) ────────────────────────────────────── -->
+  <div id="help-tip" role="tooltip" hidden></div>
   <div id="controls">
     <div id="controls-header">Visualization</div>
     <div id="controls-body">
-      <button class="toggle-btn active" id="btn-past-trail">
-        Past Trail (30 min)
-        <span class="indicator color-dot-trail"></span>
-      </button>
-      <button class="toggle-btn active" id="btn-future-trail">
-        Future Trail (30 min)
-        <span class="indicator color-dot-future"></span>
-      </button>
-      <button class="toggle-btn active" id="btn-daynight">
-        Day / Night &amp; Visibility
-        <span class="indicator color-dot-daynight"></span>
-      </button>
-      <button class="toggle-btn" id="btn-ground">
-        Ground Track &amp; Footprint
-        <span class="indicator color-dot-ground"></span>
-      </button>
-      <button class="toggle-btn" id="btn-trail-frame">
-        Trails in ECI (inertial)
-        <span class="indicator color-dot-inertial"></span>
-      </button>
-      <button class="toggle-btn" id="btn-eci">
-        ECI Frame Axes
-        <span class="indicator color-dot-eci"></span>
-      </button>
-      <button class="toggle-btn" id="btn-ecef">
-        ECEF Frame Axes
-        <span class="indicator color-dot-ecef"></span>
-      </button>
+      <div class="opt">
+        <button class="toggle-btn active" id="btn-past-trail">
+          Past Trail (30 min)
+          <span class="indicator color-dot-trail"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does Past Trail (30 min) do?" data-help="The path the ISS flew over the last 30 minutes (orange). That is roughly one third of an orbit: the ISS circles the Earth every ~93 minutes.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn active" id="btn-future-trail">
+          Future Trail (30 min)
+          <span class="indicator color-dot-future"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does Future Trail (30 min) do?" data-help="Where the ISS will be over the next 30 minutes (cyan), predicted from the same orbital elements (TLE). Predictions drift as the TLE ages, so the further ahead, the less exact.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn active" id="btn-daynight">
+          Day / Night &amp; Visibility
+          <span class="indicator color-dot-daynight"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does Day / Night &amp; Visibility do?" data-help="Shades the night side of Earth using the Sun&#x27;s real position right now, with a soft twilight band. The green patch marks where the ISS could be seen by eye this moment: it must be more than 10° above the horizon, the observer&#x27;s sky must be dark, and the ISS must still be in sunlight. The HUD shows if the ISS itself is sunlit or in Earth&#x27;s shadow. Weather is not considered.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn" id="btn-ground">
+          Ground Track &amp; Footprint
+          <span class="indicator color-dot-ground"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does Ground Track &amp; Footprint do?" data-help="Dashed line: the ISS ground track, the path on the surface directly beneath it (±46 min). Line down from the ISS: the nadir, pointing straight at the Earth&#x27;s centre. White circle: the footprint, everywhere that has the ISS above the horizon right now.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn" id="btn-trail-frame">
+          Trails in ECI (inertial)
+          <span class="indicator color-dot-inertial"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does Trails in ECI (inertial) do?" data-help="Off: trails are drawn on the spinning Earth, the way the ISS moves over the ground. On: trails are drawn in space, fixed relative to the stars (ECI), where the orbit is a near-perfect ellipse. Over 30 minutes the difference is subtle because the Earth turns only about 7.5°.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn" id="btn-eci">
+          ECI Frame Axes
+          <span class="indicator color-dot-eci"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does ECI Frame Axes do?" data-help="ECI = Earth-Centered Inertial. Solid axes that stay fixed relative to the stars while the Earth turns inside them. X points to the March equinox, Z to the North Pole, Y completes the set. The orbit maths (SGP4) is done in this frame.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn" id="btn-ecef">
+          ECEF Frame Axes
+          <span class="indicator color-dot-ecef"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does ECEF Frame Axes do?" data-help="ECEF = Earth-Centered, Earth-Fixed. Dashed axes that rotate with the Earth: X through latitude 0°, longitude 0°; Z through the North Pole. Latitude and longitude are defined here. The yellow arc is GMST, the angle between the two frames&#x27; X axes.">i</button>
+      </div>
     </div>
   </div>
 

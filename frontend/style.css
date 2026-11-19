@@ -167,7 +167,7 @@ html, body {
   position: fixed;
   top: 16px;
   right: 16px;
-  width: 200px;
+  width: 232px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
@@ -246,6 +246,44 @@ html, body {
 .toggle-btn.active .color-dot-ground { box-shadow: 0 0 6px #fff; }
 .toggle-btn.active .color-dot-trail  { box-shadow: 0 0 6px var(--trail-past); }
 .toggle-btn.active .color-dot-future { box-shadow: 0 0 6px var(--trail-future); }
+
+/* ── Help (i) tooltips ───────────────────────────────────────────────────── */
+.opt { display: flex; align-items: stretch; gap: 6px; }
+.opt .toggle-btn { flex: 1; min-width: 0; width: auto; }
+.help-btn {
+  flex: none;
+  width: 22px;
+  align-self: center;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font: italic 700 12px/1 Georgia, serif;
+  cursor: help;
+  padding: 0;
+}
+.help-btn:hover, .help-btn:focus-visible, .help-btn.open {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(74, 170, 255, 0.12);
+  outline: none;
+}
+#help-tip {
+  position: fixed;
+  z-index: 200;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px;
+  background: rgba(10, 14, 26, 0.96);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
 
 /* ── TLE Panel (bottom-left) ─────────────────────────────────────────────── */
 #tle-panel {
@@ -442,7 +480,7 @@ html, body {
 /* ── ECI / ECEF data panels ───────────────────────────────────────────────── */
 #frame-panels {
   position: fixed;
-  top: 292px;                       /* below the controls panel */
+  top: 372px;                       /* below the controls panel */
   right: 16px;
   max-height: calc(100vh - 292px - 72px);
   overflow-y: auto;
