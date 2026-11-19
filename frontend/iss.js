@@ -2,7 +2,7 @@
  * iss.js — ISS marker, orbit trail, and hover tooltip
  *
  * Responsibilities:
- *   - ISS 3D marker (low-poly station model + halo ring, constant on-screen size)
+ *   - ISS 3D marker (low-poly station model + blinking glow, constant on-screen size)
  *   - Past trail (orange line) and future trail (cyan line)
  *   - Ground track (dashed, on the surface), nadir line and visibility footprint
  *   - Hover raycasting for tooltip
@@ -32,7 +32,7 @@ let issGroup;           // positioned at the ISS
 let issScaler;          // child of issGroup: scaled each frame for constant on-screen size
 let issModel;           // the low-poly station, oriented along the orbit
 let issMesh;            // invisible hit sphere used for hover/tap detection
-let issPing;            // expanding halo ring
+let issPing;            // blinking glow dot
 const targetQuat = new THREE.Quaternion();
 let quatSet = false;
 
@@ -64,7 +64,7 @@ let isHovering = false;
 const ISS_TARGET_PX = 34;
 const ISS_MIN_SCALE = 0.02;
 const ISS_MAX_SCALE = 2.4;  // caps the size at max zoom-out so it doesn't dwarf the globe
-const PING_PERIOD_S = 2.4;
+const PING_PERIOD_S = 1.4;
 
 const MAX_PAST_POINTS = 120;  // 120 × 30s = 60 minutes of history
 
@@ -137,13 +137,16 @@ function buildISSModel() {
 }
 
 /** Ring texture: white stroke over a thin dark one, so it reads on ice and ocean alike. */
-function makeRingTexture() {
+function makeGlowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
-  g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2);
-  g.strokeStyle = 'rgba(5, 8, 15, 0.85)'; g.lineWidth = 9; g.stroke();
-  g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.stroke();
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0.00, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.18, 'rgba(255,255,255,0.95)');
+  grad.addColorStop(0.35, 'rgba(255,240,200,0.45)');
+  grad.addColorStop(1.00, 'rgba(255,240,200,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -165,17 +168,12 @@ function createISSMarker() {
   });
   issScaler.add(issModel);
 
-  // Static halo + an expanding "ping" (normal blending, so the map can't tint them)
-  const ringTex = makeRingTexture();
-  const ringMat = () => new THREE.SpriteMaterial({
-    map: ringTex, transparent: true, depthWrite: false, toneMapped: false,
-  });
-  const halo = new THREE.Sprite(ringMat());
-  halo.scale.setScalar(1.45);
-  halo.material.opacity = 0.9;
-  issScaler.add(halo);
-
-  issPing = new THREE.Sprite(ringMat());
+  // A soft glowing dot that blinks behind the model. It is a round, screen-facing blob
+  // (no outline), so it looks the same from any camera angle.
+  issPing = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: makeGlowTexture(), transparent: true, depthWrite: false, toneMapped: false,
+  }));
+  issPing.renderOrder = -1;
   issScaler.add(issPing);
 
   // Invisible, slightly oversized hit target for hover/tap
@@ -442,10 +440,11 @@ export function animateISS(deltaTime) {
   const scale = THREE.MathUtils.clamp(dist * worldPerPx * ISS_TARGET_PX, ISS_MIN_SCALE, ISS_MAX_SCALE);
   issScaler.scale.setScalar(scale);
 
-  // Ping: ring grows and fades, repeating
+  // Blink: the glow swells and fades, repeating
   const p = ((Date.now() / 1000) % PING_PERIOD_S) / PING_PERIOD_S;
-  issPing.scale.setScalar(1.45 + 1.3 * p);
-  issPing.material.opacity = 0.7 * (1 - p);
+  const pulse = 0.5 - 0.5 * Math.cos(p * Math.PI * 2);   // 0 → 1 → 0
+  issPing.scale.setScalar(1.3 + 1.0 * pulse);
+  issPing.material.opacity = 0.25 + 0.75 * pulse;
 }
 
 // ── Hover / Raycasting ───────────────────────────────────────────────────────
