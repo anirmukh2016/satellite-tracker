@@ -99,13 +99,12 @@
                placeholder="lat, lon  e.g. 51.5, -0.12" aria-label="Latitude and longitude" />
         <button type="submit" class="mini-btn">Set</button>
       </form>
-      <label class="pp-check"><input type="checkbox" id="pp-all" /> Show all passes, not just visible ones</label>
+      <div class="pp-check-row">
+        <label class="pp-check"><input type="checkbox" id="pp-all" /> Show all passes, not just visible ones</label>
+        <button type="button" class="help-btn" aria-label="How to read the pass list" data-help="★ Visible: while the ISS is above 10°, it is sunlit and your sky is dark (Sun below −6°); the times shown are when. ○ Not visible (shown when you tick the box) says why: sky too bright, or the ISS in Earth&#x27;s shadow. The search covers 30 days, because good passes come in runs of days or weeks with gaps between. Times marked ≈ are over a week away and get less certain as the TLE ages or if the ISS is reboosted. Weather and brightness are not considered. Click a pass to jump to it on the globe.">i</button>
+      </div>
       <div id="pp-list"></div>
       <button type="button" class="mini-btn" id="pp-more" hidden>Show more</button>
-      <div class="pp-note"><span style="color:#6fe28f">★ Visible</span>: while the ISS is above 10°, it is sunlit and your sky is dark
-        (Sun below −6°); the times shown are when. <strong>○ Not visible</strong> (shown when you tick the box) says why: sky too bright, or the ISS in Earth's shadow.
-        The search covers 30 days, because good passes come in runs of days or weeks with gaps between. Times marked ≈ are over a week away and get less certain as the TLE ages or if the ISS is reboosted.
-        Weather and brightness are not considered. Click a pass to jump to it on the globe.</div>
     </div>
   </div>
 

@@ -282,11 +282,13 @@ function setupHelpTips() {
     tip.textContent = btn.dataset.help;
     tip.hidden = false;
     const r = btn.getBoundingClientRect();
-    const panel = document.getElementById('controls').getBoundingClientRect();
+    const panel = btn.closest('#controls, #passes-panel').getBoundingClientRect();
     const w = tip.offsetWidth, h = tip.offsetHeight, m = 12;
-    // Desktop: to the left of the panel. If that doesn't fit (phones), below the row.
-    let left = panel.left - w - 8, top = r.top + r.height / 2 - h / 2;
-    if (left < m) { left = window.innerWidth - w - m; top = r.bottom + 8; }
+    // Desktop: beside the panel the button is in (left of the right-hand Visualization panel,
+    // right of the left-hand passes panel). If that doesn't fit (phones), below the row.
+    const onLeft = panel.left + panel.width / 2 < window.innerWidth / 2;
+    let left = onLeft ? panel.right + 8 : panel.left - w - 8, top = r.top + r.height / 2 - h / 2;
+    if (left < m || left + w > window.innerWidth - m) { left = Math.max(m, Math.min(r.left - w / 2, window.innerWidth - w - m)); top = r.bottom + 8; }
     top = Math.max(m, Math.min(top, window.innerHeight - h - m));
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
