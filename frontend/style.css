@@ -316,12 +316,15 @@ html, body {
 .mini-btn.attn { border-color: var(--accent2); color: var(--accent2); animation: attn 1.2s ease-in-out infinite; }
 @keyframes attn { 50% { box-shadow: 0 0 8px var(--accent2); } }
 
+/* Bottom centre, in the gap between the TLE panel (left, 440px) and How It Works (right, 260px),
+   like the scrubber under a video. Narrower screens lift it above those panels instead. */
 #timebar {
   position: fixed;
-  top: 48px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: clamp(260px, calc(100vw - 560px), 440px);
+  bottom: 16px;
+  left: 472px;                                  /* 16 + 440 + 16 */
+  right: 292px;                                 /* 16 + 260 + 16 */
+  width: min(560px, calc(100vw - 764px));
+  margin: 0 auto;
   padding: 8px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -332,6 +335,9 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+@media (max-width: 1000px) {
+  #timebar { bottom: 62px; left: 16px; right: 16px; width: auto; margin: 0; }
 }
 .tb-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 #tb-label { flex: 1; min-width: 90px; font-size: 11px; letter-spacing: 0.04em; color: var(--green); }
