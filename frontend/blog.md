@@ -135,8 +135,9 @@ The tracker computes GMST in the browser alongside every position update, which 
 
 Toggle the frames on the globe and the difference becomes visible rather than abstract:
 
-- **ECI axes are solid and never move; ECEF axes are dashed and ride around with the Earth.** Both use the same colour per axis (X red, Y green, Z blue), so "same axis, different frame" is obvious. ECEF's X-axis is drawn with a dashed prime-meridian arc on the surface, so you can watch Greenwich being carried round.
+- **ECI axes are solid and never move; ECEF axes are dashed and ride around with the Earth.** Both use the same colour per axis (X red, Y green, Z blue), so "same axis, different frame" is obvious. ECEF's X-axis is drawn with a dashed prime-meridian arc on the surface, so you can watch Greenwich being carried round. Both sets of axes continue, fainter, through the globe to a dot at the Earth's centre: the origin that every vector in both frames is measured from.
 - **A yellow arc between ECI-X and ECEF-X is θ**, the GMST angle, labelled with its live value. It grows by 360° every sidereal day.
+- **Arrows on the trails** show the direction of travel: the orange past path leads up to the ISS, the cyan future path leads away from it. They are placed at fixed clock times, so they stay on the orbit while the ISS flows past them.
 - **A white arrow runs from the centre to the ISS.** That is one vector in space; it only *looks* different in the two frames because the axes it is measured against differ. The ECI and ECEF data panels show its components in each frame, and the ECEF panel shows the relation r<sub>ECEF</sub> = R<sub>3</sub>(θ) · r<sub>ECI</sub> with live numbers.
 
 ## 5. WGS84 Geodetic: Why Lat/Lon Isn't Trivial

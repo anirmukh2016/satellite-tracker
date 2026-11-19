@@ -151,14 +151,14 @@
           ECI Frame Axes
           <span class="indicator color-dot-eci"></span>
         </button>
-        <button type="button" class="help-btn" aria-label="What does ECI Frame Axes do?" data-help="ECI = Earth-Centered Inertial. Solid axes that stay fixed relative to the stars while the Earth turns inside them. X points to the March equinox, Z to the North Pole, Y completes the set. The orbit maths (SGP4) is done in this frame.">i</button>
+        <button type="button" class="help-btn" aria-label="What does ECI Frame Axes do?" data-help="ECI = Earth-Centered Inertial. Solid axes that stay fixed relative to the stars while the Earth turns inside them. X points to the March equinox, Z to the North Pole, Y completes the set. The orbit maths (SGP4) is done in this frame. The faint inner part runs through the globe to the Earth&#x27;s centre, the origin of both frames.">i</button>
       </div>
       <div class="opt">
         <button class="toggle-btn" id="btn-ecef">
           ECEF Frame Axes
           <span class="indicator color-dot-ecef"></span>
         </button>
-        <button type="button" class="help-btn" aria-label="What does ECEF Frame Axes do?" data-help="ECEF = Earth-Centered, Earth-Fixed. Dashed axes that rotate with the Earth: X through latitude 0°, longitude 0°; Z through the North Pole. Latitude and longitude are defined here. The yellow arc is GMST, the angle between the two frames&#x27; X axes.">i</button>
+        <button type="button" class="help-btn" aria-label="What does ECEF Frame Axes do?" data-help="ECEF = Earth-Centered, Earth-Fixed. Dashed axes that rotate with the Earth: X through latitude 0°, longitude 0°; Z through the North Pole. Latitude and longitude are defined here. Like the ECI axes, they run through the globe to the Earth&#x27;s centre. The yellow arc is GMST, the angle between the two frames&#x27; X axes.">i</button>
       </div>
     </div>
   </div>
@@ -302,6 +302,10 @@
         <span style="color:var(--trail-past)">■</span> Past 30 min &nbsp;
         <span style="color:var(--trail-future)">■</span> Future 30 min<br/>
         They are drawn in the Earth-fixed frame, so they turn with the planet.
+        Small <strong>arrows</strong> on each trail point the way the ISS is
+        travelling, so the orange past path visibly leads <em>up to</em> the ISS
+        and the cyan future path leads <em>away</em> from it. The arrows stay put
+        on the orbit while the ISS flows past them.
       </p>
       <br/>
       <p>
@@ -351,7 +355,8 @@
         a dashed prime-meridian arc are carried round with the planet.
         GMST (<span class="highlight">θ</span>) is the rotation angle between
         ECI-X and ECEF-X, increasing by 360° every 86,164 seconds. With both
-        frames on, a yellow arc shows θ.
+        frames on, a yellow arc shows θ. The axes continue (fainter) through the
+        globe to the <strong>origin</strong>, the Earth's centre, where they all meet.
       </p>
       <br/>
       <p>

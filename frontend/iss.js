@@ -207,9 +207,60 @@ function makeTrail(name, color) {
   return line;
 }
 
+// Direction arrows: small cones on each trail pointing the way the ISS travels, so it is
+// obvious which trail is the past (orange, leading up to the ISS) and which the future
+// (cyan, leading away). They sit at fixed clock times (every ARROW_EVERY_MIN minutes), so they
+// stay put on the orbit while the ISS flows past them, and keep a constant size on screen.
+const ARROW_EVERY_MIN = 8;
+const ARROW_PX = 13;
+const ARROW_UNIT_H = 1.4;               // height of the unit cone geometry below
+let pastArrows, futureArrows;
+let arrowGeom = null;
+const _w = new THREE.Vector3();
+
+function makeArrowGroup(name) {
+  const g = new THREE.Group();
+  g.name = name;
+  (getEarthMesh() || scene).add(g);
+  return g;
+}
+
+function placeArrows(group, color, points) {
+  group.children.forEach(c => c.material.dispose());
+  group.clear();
+  if (!points || points.length < 2 || points[0].t == null) return;
+  arrowGeom ??= new THREE.ConeGeometry(0.5, ARROW_UNIT_H, 10);
+  const pos = points.map(p => latLonAltToXYZ(p.lat, p.lon, p.alt_km + 10));
+  const step = ARROW_EVERY_MIN * 60_000;
+  const mat = new THREE.MeshBasicMaterial({ color, toneMapped: false });
+  for (let m = Math.ceil(points[0].t / step) * step; m < points[points.length - 1].t; m += step) {
+    let i = 0;
+    while (i < points.length - 2 && points[i + 1].t <= m) i++;
+    const k = (m - points[i].t) / (points[i + 1].t - points[i].t);
+    const cone = new THREE.Mesh(arrowGeom, mat.clone());
+    cone.position.lerpVectors(pos[i], pos[i + 1], k);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos[i + 1].clone().sub(pos[i]).normalize());
+    group.add(cone);
+  }
+  mat.dispose();
+}
+
+function scaleArrows(worldPerPx) {
+  for (const g of [pastArrows, futureArrows]) {
+    if (!g?.visible) continue;
+    for (const c of g.children) {
+      c.getWorldPosition(_w);
+      c.scale.setScalar(THREE.MathUtils.clamp(_w.distanceTo(camera.position) * worldPerPx * ARROW_PX / ARROW_UNIT_H,
+                                              0.004, 0.5));
+    }
+  }
+}
+
 function createTrailLines() {
   pastTrailLine   = makeTrail('pastTrail', COLOR_PAST);
   futureTrailLine = makeTrail('futureTrail', COLOR_FUTURE);
+  pastArrows   = makeArrowGroup('pastArrows');
+  futureArrows = makeArrowGroup('futureArrows');
 
   // LineMaterial needs the viewport size to turn pixel widths into geometry
   window.addEventListener('resize', () => {
@@ -227,10 +278,12 @@ export function updateTrails(pastPoints, futurePoints) {
   if (pastPoints && pastPoints.length > 1) {
     pastTrailPoints = pastPoints;
     setTrailGeometry(pastTrailLine, pastPoints);
+    placeArrows(pastArrows, COLOR_PAST, pastPoints);
   }
   if (futurePoints && futurePoints.length > 1) {
     futureTrailPoints = futurePoints;
     setTrailGeometry(futureTrailLine, futurePoints);
+    placeArrows(futureArrows, COLOR_FUTURE, futurePoints);
   }
 }
 
@@ -431,6 +484,7 @@ export function animateISS(deltaTime) {
   const worldPerPx = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / window.innerHeight;
   const scale = THREE.MathUtils.clamp(dist * worldPerPx * ISS_TARGET_PX, ISS_MIN_SCALE, ISS_MAX_SCALE);
   issScaler.scale.setScalar(scale);
+  scaleArrows(worldPerPx);
 
   // Blink: the glow swells and fades, repeating
   const p = ((Date.now() / 1000) % PING_PERIOD_S) / PING_PERIOD_S;
@@ -506,6 +560,8 @@ function updateTooltip(state) {
 export function setTrailsVisible(past, future) {
   if (pastTrailLine)   pastTrailLine.visible   = past;
   if (futureTrailLine) futureTrailLine.visible  = future;
+  if (pastArrows)   pastArrows.visible   = past;
+  if (futureArrows) futureArrows.visible = future;
 }
 
 export function getISSGroup() {

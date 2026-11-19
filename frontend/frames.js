@@ -45,6 +45,7 @@ let eciGroup  = null;
 let ecefGroup = null;
 let equatorRing = null;
 let positionVector = null;
+let originGroup = null;     // the Earth's centre, where all the axes meet
 
 // Every LineMaterial needs the viewport size to turn pixel widths into geometry
 const lineMaterials = [];
@@ -68,6 +69,7 @@ export function initFrames(threeScene) {
   createECIFrame();
   createECEFFrame();
   createEquatorRing();
+  createOrigin();
   createPositionVector();
   createGMSTArc();
 
@@ -146,6 +148,16 @@ function addAxis(group, direction, color, length, dashed, labelText) {
 
   group.add(makeLine([0, 0, 0, end.x, end.y, end.z], color, { dashed }));
 
+  // The part inside the globe: drawn through the surface, a little fainter, so the
+  // axis visibly runs all the way to the Earth's centre instead of vanishing at the surface.
+  const inner = direction.clone().multiplyScalar(R_EARTH);
+  const through = makeLine([0, 0, 0, inner.x, inner.y, inner.z], color, { dashed });
+  through.material.transparent = true;
+  through.material.opacity = 0.55;
+  through.material.depthTest = false;
+  through.renderOrder = 5;
+  group.add(through);
+
   // Arrowhead cone at the tip
   const arrow = new THREE.Mesh(
     new THREE.ConeGeometry(0.04, 0.12, 12),
@@ -167,6 +179,21 @@ function createEquatorRing() {
   }
   equatorRing = makeLine(pts, RING_COLOR, { width: 1 });
   scene.add(equatorRing);
+}
+
+/** A dot at the Earth's centre (the origin of both frames), visible through the globe. */
+function createOrigin() {
+  originGroup = new THREE.Group();
+  originGroup.name = 'origin';
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 })
+  );
+  dot.renderOrder = 6;
+  originGroup.add(dot);
+  addLabel(originGroup, new THREE.Vector3(0, 0, 0), "Origin\nEarth's centre", 0xffffff, true);
+  originGroup.visible = false;
+  scene.add(originGroup);
 }
 
 /** The ISS position vector (origin → ISS). Identical in both frames; only its components differ. */
@@ -208,6 +235,7 @@ function refreshShared() {
   const ecef = !!ecefGroup?.visible;
   if (equatorRing)    equatorRing.visible    = eci || ecef;
   if (positionVector) positionVector.visible = eci || ecef;
+  if (originGroup)    originGroup.visible    = eci || ecef;
   if (!(eci && ecef)) hideGMST();
 }
 
@@ -233,8 +261,8 @@ function makeLabelEl(text, color) {
   return el;
 }
 
-function addLabel(group, local, text, color) {
-  labels.push({ el: makeLabelEl(text, color), group, local: local.clone() });
+function addLabel(group, local, text, color, seeThrough = false) {
+  labels.push({ el: makeLabelEl(text, color), group, local: local.clone(), seeThrough });
 }
 
 /** True if the Earth sphere sits between the camera and `point`. */
@@ -265,8 +293,8 @@ function isUnderUI(x, y) {
                            (x + 70 > r.left && x + 70 < r.right && y + 12 > r.top && y + 12 < r.bottom));
 }
 
-function placeLabel(el, world, camera, rect) {
-  if (isOccludedByEarth(camera, world)) { el.style.display = 'none'; return; }
+function placeLabel(el, world, camera, rect, seeThrough = false) {
+  if (!seeThrough && isOccludedByEarth(camera, world)) { el.style.display = 'none'; return; }
   _p.copy(world).project(camera);
   if (_p.z > 1 || _p.z < -1) { el.style.display = 'none'; return; }   // behind camera
   const x = rect.left + (_p.x + 1) / 2 * rect.width;
@@ -283,10 +311,10 @@ function placeLabel(el, world, camera, rect) {
 export function updateAxisLabels(camera, renderer) {
   const rect = renderer.domElement.getBoundingClientRect();
 
-  for (const { el, group, local } of labels) {
+  for (const { el, group, local, seeThrough } of labels) {
     if (!group.visible) { el.style.display = 'none'; continue; }
     group.localToWorld(_p.copy(local));
-    placeLabel(el, _p.clone(), camera, rect);
+    placeLabel(el, _p.clone(), camera, rect, seeThrough);
   }
 
   if (gmstLabel && gmstLabel.el.dataset.on === '1') {

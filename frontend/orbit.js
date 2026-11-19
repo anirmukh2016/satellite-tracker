@@ -107,7 +107,7 @@ function trailPoint(satrec, date) {
   const { rEci } = propagate(satrec, date);
   const { lat, lon, alt } = ecefToGeodetic(eciToEcef(rEci, computeGMST(date)));
   // `eci` is the inertial position, so the UI can draw the orbit in either frame
-  return { lat: round(lat, 3), lon: round(lon, 3), alt_km: round(alt, 2), eci: rEci.map(v => round(v, 1)) };
+  return { lat: round(lat, 3), lon: round(lon, 3), alt_km: round(alt, 2), eci: rEci.map(v => round(v, 1)), t: date.getTime() };
 }
 
 /** Orbit trail around `center`: {past: [...], future: [...]} of {lat, lon, alt_km, eci}. */
