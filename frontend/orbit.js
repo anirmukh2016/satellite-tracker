@@ -192,6 +192,53 @@ export function parseTLEParams(line1, line2) {
   };
 }
 
+// ── Orbit health: elements, drag and J2 ─────────────────────────────────────
+
+const MU_KM3_S2 = 398600.4418;     // Earth's gravitational parameter
+const J2 = 1.08262668e-3;          // Earth's oblateness coefficient
+
+/** TLE exponent field like " 20179-3" -> 0.20179e-3. */
+function parseTLEExp(field) {
+  const f = field.trim();
+  if (!f) return 0;
+  const m = f.match(/^([+-]?)(\d+)([+-]\d)$/);
+  if (!m) return NaN;
+  return Number(`${m[1]}0.${m[2]}e${m[3]}`);
+}
+
+/**
+ * The slowly-changing orbital elements of a TLE plus what they imply:
+ *   a = (mu / n^2)^(1/3)           semi-major axis from the mean motion
+ *   decay_km_per_day               from the fitted drag term (n-dot/2): da/dt = -(2/3) a (n-dot / n)
+ * `mean_alt_km` is a minus the Earth's equatorial radius: an average height, not the instantaneous one.
+ */
+export function tleElements(line1, line2) {
+  const n = parseFloat(line2.substring(52, 63));                  // rev/day
+  const nRadS = n * 2 * Math.PI / 86400;
+  const a = Math.cbrt(MU_KM3_S2 / (nRadS * nRadS));
+  const ndot = 2 * parseFloat(line1.substring(33, 43));           // line 1 holds n-dot / 2 (rev/day^2)
+  return {
+    epoch: tleEpochDate(line1).toISOString(),
+    mean_motion: n,
+    ndot_rev_day2: ndot,
+    bstar: parseTLEExp(line1.substring(53, 61)),
+    inclination_deg: parseFloat(line2.substring(8, 16)),
+    raan_deg: parseFloat(line2.substring(17, 25)),
+    eccentricity: parseFloat('0.' + line2.substring(26, 33).trim()),
+    sma_km: a,
+    mean_alt_km: a - R_EARTH_KM,
+    decay_km_per_day: -(2 / 3) * a * (ndot / n),
+  };
+}
+
+/** Theoretical J2 drift of the orbit plane (deg/day, negative = westward) for given elements. */
+export function j2RaanRate(smaKm, ecc, inclDeg) {
+  const n = Math.sqrt(MU_KM3_S2 / smaKm ** 3);                    // rad/s
+  const p = smaKm * (1 - ecc * ecc);
+  const rate = -1.5 * n * J2 * (R_EARTH_KM / p) ** 2 * Math.cos(inclDeg * DEG);   // rad/s
+  return rate / DEG * 86400;
+}
+
 // ── Observer passes ──────────────────────────────────────────────────────────
 
 /** WGS84 ECEF position [km] of a ground point. */

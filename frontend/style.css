@@ -382,7 +382,11 @@ html, body {
 .tle-health-title { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; margin-bottom: 6px; }
 .tle-param-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
 .tle-param-row .warn { color: var(--accent2); }
-#th-spark svg { width: 100%; height: 34px; display: block; margin: 6px 0; }
+#th-spark svg { width: 100%; height: 30px; display: block; margin: 2px 0 6px; }
+.th-spark-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 6px; }
+.th-events { text-align: right; }
+.tle-health .tle-param-label { display: inline; }
+.tle-health .tle-param-row span:last-child .tle-param-label { text-transform: none; letter-spacing: 0; font-size: 10px; }
 .th-actions { display: flex; gap: 6px; }
 #th-log { max-height: 140px; overflow: auto; margin-top: 8px; font-size: 10px; }
 #th-log table { width: 100%; border-collapse: collapse; }
@@ -443,6 +447,7 @@ kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); b
   gap: 10px;
 }
 #tle-content.visible { display: flex; }
+#tle-content { max-height: calc(100dvh - 90px); overflow-y: auto; }
 
 .tle-lines {
   background: rgba(0, 0, 0, 0.3);

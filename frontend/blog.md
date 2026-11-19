@@ -212,7 +212,7 @@ Things to try:
 - **ECI and ECEF axes** — turn both on to see the solid/dashed axes, the yellow θ arc, the ISS position vector, and the two coordinate panels side by side.
 - **Next Passes** — type your coordinates (or click the globe), then click a ★ pass to jump to it: the time bar moves to the peak and the ISS flies over your marker.
 - **Time bar** — drag the slider to watch the terminator sweep and the zone appear and vanish; share the moment with the **Share** link.
-- **TLE Health** — open the TLE panel to see how far the ISS jumped the last time a fresh TLE replaced the old one. It is almost all along-track, because a tiny error in orbital period accumulates along the orbit; a jump of several km usually means a reboost.
+- **TLE Health** — open the TLE panel to see how far the ISS jumped the last time a fresh TLE replaced the old one, plus its mean altitude, how fast drag is shrinking the orbit (about 0.07 km a day, so −2 km a month), how fast Earth's bulge is turning the orbit plane (−4.95° a day), and any reboost or high-drag events spotted in the TLE history. These come from fitted values in the TLE, so they flag changes worth a look and are not precise measurements; gravity anomalies are far too small to see in TLE data. The correction itself is almost all along-track, because a tiny error in orbital period accumulates along the orbit; a jump of several km usually means a reboost.
 - **Hover (or tap) the ISS** for its live position, altitude and speed.
 
 ## 10. Further Work

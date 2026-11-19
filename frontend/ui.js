@@ -15,13 +15,14 @@ import { updateISSPosition, updateTrails, setTrailsVisible,
          setObserverMarker, getISSWorldPosition } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible,
          recenterOnISS, getCameraDistance, setCameraDistance, getControls, pickEarth, isHiddenByEarth } from './globe.js';
-import { tleDrift, appendEntry, logToCsv, loadLog, saveLog, loadLastTle, saveLastTle } from './tlelog.js';
+import { tleDrift, appendEntry, logToCsv, loadLog, saveLog, loadLastTle, saveLastTle,
+         appendElements, loadHistory, saveHistory, decayTrend, findEvents, observedRaanRate } from './tlelog.js';
 import { TOGGLES as TOGGLE_NAMES, loadSettings, saveSettings, decodeHash, encodeHash } from './settings.js';
 import { initPasses, setSatrec as setPassSatrec, setObserver as setPassObserver, cancelPicking, refresh as refreshPasses } from './passes-ui.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
          updateGMSTIndicator, updateFrameVectors } from './frames.js';
 import { makeSatrec, getFullState, computeOrbitTrail, sunDirectionEci, isInEarthShadow, visibleZoneAngle,
-         parseTLEEpoch, parseTLEParams, tleEpochDate } from './orbit.js';
+         parseTLEEpoch, parseTLEParams, tleEpochDate, tleElements, j2RaanRate } from './orbit.js';
 
 const TLE_URL        = '/api/tle';
 const TICK_MS        = 2000;            // position update cadence
@@ -362,6 +363,7 @@ async function loadTLE() {
       source: data.source || 'unknown',
     };
     recordDrift(tle || loadLastTle(), fresh);
+    recordElements(tle || loadLastTle(), fresh);
     saveLastTle(fresh);
     tle = fresh;
     showTLEInfo(tle);
@@ -576,9 +578,11 @@ function setupPasses() {
 // ── TLE health: how far the ISS jumps when a fresh TLE arrives ──────────────
 
 let tleLog = [];
+let elementHistory = [];     // one tleElements() record per distinct TLE epoch
 
 function setupTleHealth() {
   tleLog = loadLog();
+  elementHistory = loadHistory();
   document.getElementById('th-toggle')?.addEventListener('click', () => {
     const el = document.getElementById('th-log');
     if (el) el.hidden = !el.hidden;
@@ -609,11 +613,25 @@ function recordDrift(prevTle, fresh) {
       oldEpoch: tleEpochDate(prevTle.line1).toISOString(),
       newEpoch: tleEpochDate(fresh.line1).toISOString(),
       source: fresh.source,
+      new_alt_km: tleElements(fresh.line1, fresh.line2).mean_alt_km,
+      bstar: tleElements(fresh.line1, fresh.line2).bstar,
       ...d,
     });
     saveLog(tleLog);
   } catch (e) {
     console.warn('[TLE] Could not measure drift (old TLE too stale?):', e.message);
+  }
+}
+
+/** Remember the elements of every distinct TLE we see (the previous one too, if it is new to us). */
+function recordElements(prevTle, fresh) {
+  try {
+    let h = elementHistory;
+    if (prevTle) h = appendElements(h, { ...tleElements(prevTle.line1, prevTle.line2), source: prevTle.source || 'saved' });
+    h = appendElements(h, { ...tleElements(fresh.line1, fresh.line2), source: fresh.source });
+    if (h !== elementHistory) { elementHistory = h; saveHistory(h); }
+  } catch (e) {
+    console.warn('[TLE] Could not record elements:', e.message);
   }
 }
 
@@ -632,7 +650,11 @@ function renderTleHealth() {
       `${last.total_km.toFixed(2)} km` + (last.total_km > REBOOST_KM ? ' <span class="warn" title="Large correction: possible reboost">⚠</span>' : '') +
       `<br><span class="tle-param-label">${when} · along ${last.along_km.toFixed(2)}, cross ${last.cross_km.toFixed(2)}, radial ${last.radial_km.toFixed(2)}</span>`);
   }
-  set('th-spark', sparkline(tleLog.slice(-40).map(e => e.total_km)));
+  renderOrbitHealth(set);
+  set('th-spark',
+    sparkBlock('Correction at each new TLE (km)', tleLog.slice(-40).map(e => e.total_km), 2) +
+    sparkBlock('Mean altitude (km)', elementHistory.slice(-40).map(r => r.mean_alt_km), 1) +
+    sparkBlock('Drag term B*', elementHistory.slice(-40).map(r => r.bstar), 5));
 
   const toggle = document.getElementById('th-toggle');
   if (toggle) toggle.textContent = `Log (${tleLog.length})`;
@@ -642,19 +664,49 @@ function renderTleHealth() {
   const rows = [...tleLog].reverse().map(e => {
     const when = new Date(e.checkedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const ageH = (new Date(e.checkedAt) - new Date(e.oldEpoch)) / 3_600_000;
-    return `<tr><td>${when}</td><td>${ageH.toFixed(0)} h</td><td>${e.total_km.toFixed(2)}</td><td>${e.along_km.toFixed(2)}</td><td>${e.cross_km.toFixed(2)}</td><td>${e.radial_km.toFixed(2)}</td></tr>`;
+    return `<tr><td>${when}</td><td>${ageH.toFixed(0)} h</td><td>${e.total_km.toFixed(2)}</td><td>${e.along_km.toFixed(2)}</td><td>${e.cross_km.toFixed(2)}</td><td>${e.radial_km.toFixed(2)}</td><td>${e.new_alt_km == null ? '—' : e.new_alt_km.toFixed(1)}</td></tr>`;
   }).join('');
   set('th-log', tleLog.length
-    ? `<table><thead><tr><th>Checked</th><th>Old age</th><th>Total km</th><th>Along</th><th>Cross</th><th>Radial</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Checked</th><th>Old age</th><th>Total km</th><th>Along</th><th>Cross</th><th>Radial</th><th>Alt km</th></tr></thead><tbody>${rows}</tbody></table>`
     : '<span class="tle-param-label">No corrections yet. One is logged each time NORAD publishes a newer TLE.</span>');
   const legend = document.getElementById('th-legend');
   if (legend) legend.hidden = tleLog.length === 0;
 }
 
+/** Altitude, decay, plane drift and notable events, from the element history and the current TLE. */
+function renderOrbitHealth(set) {
+  if (!tle) return;
+  const now = tleElements(tle.line1, tle.line2);
+  set('th-alt', `${now.mean_alt_km.toFixed(1)} km`);
+  set('th-decay', `${now.decay_km_per_day.toFixed(3)} km/day <span class="tle-param-label">(${(now.decay_km_per_day * 30).toFixed(1)} km/month)</span>`);
+
+  const t = decayTrend(elementHistory);
+  set('th-trend', t
+    ? `${t.kmPerDay.toFixed(3)} km/day <span class="tle-param-label">(${t.count} TLEs, ${t.spanDays.toFixed(1)} days)</span>`
+    : '<span class="tle-param-label">needs 3 TLEs over a day</span>');
+
+  const expected = j2RaanRate(now.sma_km, now.eccentricity, now.inclination_deg);
+  const seen = observedRaanRate(elementHistory, 24);
+  set('th-raan', `${expected.toFixed(2)}°/day` + (seen == null ? '' : ` <span class="tle-param-label">(seen ${seen.toFixed(2)})</span>`));
+
+  const fmt = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric' });
+  const ev = findEvents(elementHistory).slice(-3).reverse();
+  set('th-events', ev.length
+    ? ev.map(e => `<div>${e.type === 'reboost' ? '⬆ Reboost' : '⚠ High drag'} <span class="tle-param-label">${fmt(e.epoch)} · ${e.detail}</span></div>`).join('')
+    : '<span class="tle-param-label">none detected</span>');
+}
+
+function sparkBlock(label, values, digits) {
+  const svg = sparkline(values);
+  if (!svg) return '';
+  const last = values[values.length - 1];
+  return `<div class="th-spark-label"><span>${label}</span><span>${last.toFixed(digits)}</span></div>${svg}`;
+}
+
 function sparkline(values) {
   if (values.length < 2) return '';
-  const max = Math.max(...values, 0.001);
-  const pts = values.map((v, i) => `${(i / (values.length - 1) * 100).toFixed(1)},${(28 - (v / max) * 26).toFixed(1)}`).join(' ');
+  const lo = Math.min(...values), hi = Math.max(...values), range = hi - lo || 1;
+  const pts = values.map((v, i) => `${(i / (values.length - 1) * 100).toFixed(1)},${(28 - ((v - lo) / range) * 26).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#4af" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
