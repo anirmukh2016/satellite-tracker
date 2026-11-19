@@ -3,13 +3,21 @@
  *
  * The user picks a location (device location, a click on the globe, or typed
  * coordinates); findPasses() in orbit.js lists the ISS passes over it for the
- * next 48 hours. Clicking a pass jumps the time bar to its peak.
+ * next 30 days (a search of ~50 ms). By default only passes that could be seen with
+ * the naked eye are listed, since in a given fortnight there may be none for days;
+ * a checkbox shows every pass. Clicking a pass jumps the time bar to its peak.
  */
 
 import { findPasses, compass } from './orbit.js';
 
-const HOURS = 48;
-const MAX_ROWS = 6;
+const DAYS = 30;                // how far ahead to search
+const STEP_SEC = 30;
+const PAGE = 6;                 // rows per page; "Show more" adds another page
+const UNCERTAIN_AFTER_DAYS = 7; // past this, times are marked approximate (the TLE ages, and a reboost shifts timing)
+const ALL_KEY = 'iss.passesShowAll';
+
+let showAll = false;
+let limit = PAGE;
 
 let hooks = null;      // { onObserver(obs|null), jumpTo(date), requestPick(cb|null) }
 let satrec = null;
@@ -40,6 +48,16 @@ export function initPasses(h) {
 
   $('pp-clear').addEventListener('click', () => setObserver(null));
 
+  try { showAll = localStorage.getItem(ALL_KEY) === '1'; } catch { /* storage unavailable */ }
+  $('pp-all').checked = showAll;
+  $('pp-all').addEventListener('change', () => {
+    showAll = $('pp-all').checked;
+    limit = PAGE;
+    try { localStorage.setItem(ALL_KEY, showAll ? '1' : '0'); } catch { /* ignore */ }
+    refresh();
+  });
+  $('pp-more').addEventListener('click', () => { limit += PAGE; refresh(); });
+
   $('pp-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const m = $('pp-input').value.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)$/);
@@ -62,6 +80,7 @@ export function setSatrec(s) { satrec = s; refresh(); }
 
 export function setObserver(obs) {
   observer = obs;
+  limit = PAGE;
   hooks.onObserver(obs);
   $('pp-clear').hidden = !obs;
   refresh();
@@ -82,22 +101,36 @@ function untilText(date) {
 
 /** Recompute and redraw the pass list (cheap: ~10k propagations). */
 export function refresh() {
-  const list = $('pp-list');
+  const list = $('pp-list'), more = $('pp-more');
+  more.hidden = true;
   if (!observer) { list.innerHTML = ''; say('Set your location to see when the ISS flies over.'); return; }
-  say(`Passes over ${fmtLat(observer.lat)} ${fmtLon(observer.lon)}, next ${HOURS} h`);
+  say(`${showAll ? 'All passes' : 'Visible passes'} over ${fmtLat(observer.lat)} ${fmtLon(observer.lon)}, next ${DAYS} days`);
   if (!satrec) return;
 
-  let passes = [];
-  try { passes = findPasses(satrec, observer.lat, observer.lon, new Date(), HOURS); }
+  let found = [];
+  try { found = findPasses(satrec, observer.lat, observer.lon, new Date(), DAYS * 24, { stepSec: STEP_SEC }); }
   catch (e) { console.error('[Passes]', e); }
 
-  if (!passes.length) { list.innerHTML = '<div class="pp-empty">No passes above 10° in this window.</div>'; return; }
+  const passes = showAll ? found : found.filter(p => p.visible);
+  if (!passes.length) {
+    list.innerHTML = found.length
+      ? `<div class="pp-empty">No passes you could see in the next ${DAYS} days (${found.length} pass${found.length === 1 ? '' : 'es'} above 10°, all in daylight or the ISS's shadow). Tick “Show all passes” to see them.</div>`
+      : `<div class="pp-empty">No passes above 10° in the next ${DAYS} days.</div>`;
+    return;
+  }
 
-  list.replaceChildren(...passes.slice(0, MAX_ROWS).map((p) => {
+  const shown = passes.slice(0, limit);
+  more.hidden = passes.length <= shown.length;
+  more.textContent = `Show more (${passes.length - shown.length} left)`;
+
+  list.replaceChildren(...shown.map((p) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'pp-pass';
-    const when = p.peak.time.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    const daysAway = (p.peak.time - Date.now()) / 86_400_000;
+    const dateOpts = daysAway > 1.5 ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'short' };
+    const when = (daysAway > UNCERTAIN_AFTER_DAYS ? '≈ ' : '') +
+      p.peak.time.toLocaleString([], { ...dateOpts, hour: '2-digit', minute: '2-digit' });
     const mins = Math.floor(p.durationS / 60), secs = Math.round(p.durationS % 60);
     const hm = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     b.classList.add(p.visible ? 'is-visible' : 'not-visible');

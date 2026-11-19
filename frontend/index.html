@@ -99,9 +99,12 @@
                placeholder="lat, lon  e.g. 51.5, -0.12" aria-label="Latitude and longitude" />
         <button type="submit" class="mini-btn">Set</button>
       </form>
+      <label class="pp-check"><input type="checkbox" id="pp-all" /> Show all passes, not just visible ones</label>
       <div id="pp-list"></div>
+      <button type="button" class="mini-btn" id="pp-more" hidden>Show more</button>
       <div class="pp-note"><span style="color:#6fe28f">★ Visible</span>: while the ISS is above 10°, it is sunlit and your sky is dark
-        (Sun below −6°); the times shown are when. <strong>○ Not visible</strong> says why: sky too bright, or the ISS in Earth's shadow.
+        (Sun below −6°); the times shown are when. <strong>○ Not visible</strong> (shown when you tick the box) says why: sky too bright, or the ISS in Earth's shadow.
+        The search covers 30 days, because good passes come in runs of days or weeks with gaps between. Times marked ≈ are over a week away and get less certain as the TLE ages or if the ISS is reboosted.
         Weather and brightness are not considered. Click a pass to jump to it on the globe.</div>
     </div>
   </div>
@@ -323,9 +326,9 @@
       <br/>
       <p>
         <strong>Next Passes:</strong> set a location (your device, a click on the
-        globe, or typed coordinates) to list the ISS passes in the next 48 hours:
-        when it rises, its peak height and where in the sky it travels. ★ marks
-        passes you could see with your own eyes.
+        globe, or typed coordinates) to list the ISS passes you could see with your own eyes in the next 30 days:
+        when it rises, its peak height and where in the sky it travels. Tick
+        &ldquo;Show all passes&rdquo; to include the ones that are in daylight or in Earth's shadow.
       </p>
       <br/>
       <p>
