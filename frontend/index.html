@@ -208,6 +208,14 @@
           <button type="button" class="mini-btn" id="th-csv" disabled>Download CSV</button>
         </div>
         <div id="th-log" hidden></div>
+        <div id="th-legend" class="th-legend" hidden>
+          <strong>Reading the log.</strong> Each row is one time NORAD published a newer TLE.
+          <em>Old age</em>: how old the previous TLE was when replaced.
+          <em>Total</em>: how far the ISS jumped (km), old prediction vs new, at that moment.
+          <em>Along</em>: ahead (+) or behind (−) along the orbit, usually most of it.
+          <em>Cross</em>: sideways, off the orbit plane. <em>Radial</em>: up or down.
+          A jump above 5 km usually means a reboost.
+        </div>
       </div>
       <div class="tle-params">
         <div class="tle-param">

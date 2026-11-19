@@ -30,6 +30,7 @@ test('log helpers: cap, CSV and storage round-trip', async () => {
   assert.equal(log.length, 200);
   assert.equal(log[0].total_km, 50);
   assert.equal(logToCsv(log.slice(0, 2)).split('\n').length, 4);
+  assert.ok(logToCsv([{ checkedAt: 'a', oldEpoch: 'b', newEpoch: 'c', source: 'celestrak', total_km: 1, along_km: 1, cross_km: 0, radial_km: 0 }]).includes('c,celestrak,1.000'));
   const mem = { d: {}, getItem(k) { return this.d[k] ?? null; }, setItem(k, v) { this.d[k] = v; } };
   saveLog(log, mem);
   assert.equal(loadLog(mem).length, 200);

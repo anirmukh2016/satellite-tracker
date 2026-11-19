@@ -35,9 +35,9 @@ export function appendEntry(log, entry, max = MAX_ENTRIES) {
 }
 
 export function logToCsv(log) {
-  const head = 'checked_at_utc,old_epoch_utc,new_epoch_utc,total_km,along_km,cross_km,radial_km';
+  const head = 'checked_at_utc,old_epoch_utc,new_epoch_utc,source,total_km,along_km,cross_km,radial_km';
   const f = (x) => x.toFixed(3);
-  return [head, ...log.map(e => [e.checkedAt, e.oldEpoch, e.newEpoch,
+  return [head, ...log.map(e => [e.checkedAt, e.oldEpoch, e.newEpoch, e.source || '',
     f(e.total_km), f(e.along_km), f(e.cross_km), f(e.radial_km)].join(','))].join('\n') + '\n';
 }
 

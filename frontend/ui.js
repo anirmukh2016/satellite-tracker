@@ -359,6 +359,7 @@ async function loadTLE() {
       name: data.name, line1: data.line1, line2: data.line2,
       satrec: makeSatrec(data.line1, data.line2),
       fetchedAt: Date.now(),
+      source: data.source || 'unknown',
     };
     recordDrift(tle || loadLastTle(), fresh);
     saveLastTle(fresh);
@@ -596,6 +597,9 @@ function setupTleHealth() {
 /** Compare the previous TLE with the fresh one at the same instant and log the gap. */
 function recordDrift(prevTle, fresh) {
   if (!prevTle || (prevTle.line1 === fresh.line1 && prevTle.line2 === fresh.line2)) return;   // nothing changed
+  // Only a genuinely newer element set counts. A stale cache copy or a fallback source
+  // serving an older TLE would otherwise be logged as a bogus "correction".
+  if (tleEpochDate(fresh.line1) <= tleEpochDate(prevTle.line1)) return;
   try {
     const prevSat = prevTle.satrec || makeSatrec(prevTle.line1, prevTle.line2);
     const now = new Date();
@@ -604,6 +608,7 @@ function recordDrift(prevTle, fresh) {
       checkedAt: now.toISOString(),
       oldEpoch: tleEpochDate(prevTle.line1).toISOString(),
       newEpoch: tleEpochDate(fresh.line1).toISOString(),
+      source: fresh.source,
       ...d,
     });
     saveLog(tleLog);
@@ -641,7 +646,9 @@ function renderTleHealth() {
   }).join('');
   set('th-log', tleLog.length
     ? `<table><thead><tr><th>Checked</th><th>Old age</th><th>Total km</th><th>Along</th><th>Cross</th><th>Radial</th></tr></thead><tbody>${rows}</tbody></table>`
-    : '<span class="tle-param-label">No corrections yet. One is logged each time a changed TLE replaces the old one.</span>');
+    : '<span class="tle-param-label">No corrections yet. One is logged each time NORAD publishes a newer TLE.</span>');
+  const legend = document.getElementById('th-legend');
+  if (legend) legend.hidden = tleLog.length === 0;
 }
 
 function sparkline(values) {

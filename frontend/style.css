@@ -389,6 +389,8 @@ html, body {
 #th-log th, #th-log td { padding: 2px 4px; text-align: right; white-space: nowrap; }
 #th-log th:first-child, #th-log td:first-child { text-align: left; }
 #th-log th { color: var(--text-dim); font-weight: normal; position: sticky; top: 0; background: #0a1428; }
+#th-legend { margin-top: 8px; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
+#th-legend em { color: var(--text); font-style: normal; }
 kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; color: var(--accent); }
 
 /* ── TLE Panel (bottom-left) ─────────────────────────────────────────────── */
