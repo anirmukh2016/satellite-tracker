@@ -203,21 +203,6 @@
       <div class="tle-lines" id="tle-lines">
         <div class="tle-line name">Loading...</div>
       </div>
-      <div class="tle-health" id="tle-health">
-        <div class="tle-health-title"><span>TLE Health</span><button type="button" class="help-btn sm" aria-label="How to read TLE Health" data-help="Orbit health. Decay (drag term): how fast air drag is shrinking the orbit, taken from the TLE&#x27;s own fitted drag term (about −2 km a month for the ISS). Altitude trend: the same, measured from successive TLEs. Plane drift: Earth&#x27;s bulge turning the orbit plane westward (about −4.95°/day). Events: a reboost (altitude jumps up by over 0.5 km between TLEs) or high drag (drag term or B* over twice its usual). These are fitted values, so treat events as &quot;worth a look&quot;. History starts when this browser first saw a TLE.&#10;&#10;Reading the log. Each row is one time NORAD published a newer TLE. Old age: how old the previous TLE was when replaced. Total: how far the ISS jumped (km), old prediction against new, at that moment. Along: ahead (+) or behind (−) along the orbit, usually most of it. Cross: sideways, off the orbit plane. Radial: up or down. A jump above 5 km usually means a reboost.">i</button></div>
-        <div class="tle-param-row"><span class="tle-param-label">Age of this TLE</span><span id="th-age">—</span></div>
-        <div class="tle-param-row"><span class="tle-param-label">Mean altitude</span><span id="th-alt">—</span></div>
-        <div class="tle-param-row"><span class="tle-param-label" title="From the TLE's own fitted drag term (n-dot)">Decay (drag term)</span><span id="th-decay">—</span></div>
-        <div class="tle-param-row"><span class="tle-param-label" title="Slope of mean altitude over recent TLEs, after the latest reboost">Altitude trend</span><span id="th-trend">—</span></div>
-        <div class="tle-param-row"><span class="tle-param-label" title="Earth's bulge (J2) turns the orbit plane; compares theory with the TLEs seen">Plane drift (J2)</span><span id="th-raan">—</span></div>
-        <div class="tle-param-row"><span class="tle-param-label">Events</span><span id="th-events" class="th-events">—</span></div>
-        <div class="tle-param-row"><span class="tle-param-label">Last correction</span><span id="th-last">none recorded yet</span></div>
-        <div class="th-actions">
-          <button type="button" class="mini-btn" id="th-toggle">Log (0)</button>
-          <button type="button" class="mini-btn" id="th-csv" disabled>Download CSV</button>
-        </div>
-        <div id="th-log" hidden></div>
-      </div>
       <div class="tle-params">
         <div class="tle-param">
           <div class="tle-param-label">Epoch</div>
@@ -314,15 +299,6 @@
         globe, or typed coordinates) to list the ISS passes you could see with your own eyes in the next 30 days:
         when it rises, its peak height and where in the sky it travels. Tick
         &ldquo;Show all passes&rdquo; to include the ones that are in daylight or in Earth's shadow.
-      </p>
-      <br/>
-      <p>
-        <strong>TLE Health:</strong> every time a fresh TLE arrives, the tracker
-        compares it with the old one at the same instant. The gap is the error the
-        old TLE had built up, split into along-track, cross-track and radial parts.
-        It also tracks mean altitude, the drag-driven decay rate and any reboost or
-        high-drag events. All of it is kept in this browser; download the log as CSV
-        from the TLE panel.
       </p>
       <br/>
       <p>

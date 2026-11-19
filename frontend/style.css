@@ -274,9 +274,9 @@ html, body {
   cursor: help;
   padding: 0;
 }
+.vec-title-row { display: flex; align-items: center; justify-content: space-between; }
 .help-btn.sm { width: 18px; height: 18px; font-size: 11px; }
 .tle-header-end { display: inline-flex; align-items: center; gap: 8px; }
-.tle-health-title, .vec-title-row { display: flex; align-items: center; justify-content: space-between; }
 #hud-header .help-btn { margin-left: auto; }
 .help-btn:hover, .help-btn:focus-visible, .help-btn.open {
   color: var(--accent);
@@ -391,19 +391,6 @@ html, body {
 #pp-more { width: 100%; margin: 2px 0 6px; }
 .pp-empty { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
 
-.tle-health { border-bottom: 1px solid var(--border); padding: 10px 12px; font-size: 11px; }
-.tle-health-title { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; margin-bottom: 6px; }
-.tle-param-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
-.tle-param-row .warn { color: var(--accent2); }
-.th-events { text-align: right; }
-.tle-health .tle-param-label { display: inline; }
-.tle-health .tle-param-row span:last-child .tle-param-label { text-transform: none; letter-spacing: 0; font-size: 10px; }
-.th-actions { display: flex; gap: 6px; }
-#th-log { max-height: 140px; overflow: auto; margin-top: 8px; font-size: 10px; }
-#th-log table { width: 100%; border-collapse: collapse; }
-#th-log th, #th-log td { padding: 2px 4px; text-align: right; white-space: nowrap; }
-#th-log th:first-child, #th-log td:first-child { text-align: left; }
-#th-log th { color: var(--text-dim); font-weight: normal; position: sticky; top: 0; background: #0a1428; }
 kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; color: var(--accent); }
 
 /* ── TLE Panel (bottom-left) ─────────────────────────────────────────────── */

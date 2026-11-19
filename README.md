@@ -27,9 +27,8 @@ Requirements: Node 20+ and an internet connection (to fetch the live TLE). No de
 - **Ground Track & Nadir** toggle: dashed path of the ISS projected onto the surface (one full orbit) and a line dropping to the point beneath it
 - **Next Passes** (top-left): set a location (device, click on the globe, or typed coordinates) and see the ISS passes you could actually see over it for the next 30 days (visible-only by default, with a checkbox to show every pass), with peak elevation, direction and visible window. Click a pass to jump to it
 - **Time bar** (top-centre): scrub ±3 hours to watch the terminator, zone and ISS move; **Live** returns to now; **Recenter** eases the camera back to the ISS; **Share** copies a link that restores your toggles, location and time
-- **TLE Health** (in the TLE panel): each time a newer TLE replaces the old one, the position jump is logged (along-track, cross-track, radial) with a table and CSV export. It also tracks **orbit health**: mean altitude, the drag-driven decay rate (about −2 km a month for the ISS), the J2 drift of the orbit plane against theory (−4.95°/day), and flags for reboosts and high-drag episodes. All stored in the browser
 - Settings persist between visits; keyboard shortcuts: P F D Z G E C toggle layers, R recenter, L live, ←/→ step time
-- (i) help buttons explain every option and panel (HUD, time bar, passes, TLE and TLE Health, ECI/ECEF data); the Visualization panel collapses (collapsed by default on phones)
+- (i) help buttons explain every option and panel (HUD, time bar, passes, TLE, ECI/ECEF data); the Visualization panel collapses (collapsed by default on phones)
 
 ---
 
@@ -134,7 +133,6 @@ satellite-tracker/
 │   ├── frames.js         # ECI/ECEF coordinate axis visualization
 │   ├── ui.js             # HUD, toggles, shortcuts, time bar, tracking loop
 │   ├── passes-ui.js      # Next Passes panel
-│   ├── tlelog.js         # TLE drift measurement + log
 │   ├── settings.js       # saved settings and shareable link encoding
 │   └── style.css         # Dark space theme
 ├── scripts/dev-server.js # Local dev server (npm start)

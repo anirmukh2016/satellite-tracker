@@ -15,14 +15,12 @@ import { updateISSPosition, updateTrails, setTrailsVisible,
          setObserverMarker, getISSWorldPosition } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible,
          recenterOnISS, getCameraDistance, setCameraDistance, getControls, pickEarth, isHiddenByEarth } from './globe.js';
-import { tleDrift, appendEntry, logToCsv, loadLog, saveLog, loadLastTle, saveLastTle,
-         appendElements, loadHistory, saveHistory, decayTrend, findEvents, observedRaanRate } from './tlelog.js';
 import { TOGGLES as TOGGLE_NAMES, loadSettings, saveSettings, decodeHash, encodeHash } from './settings.js';
 import { initPasses, setSatrec as setPassSatrec, setObserver as setPassObserver, cancelPicking, refresh as refreshPasses } from './passes-ui.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
          updateGMSTIndicator, updateFrameVectors } from './frames.js';
 import { makeSatrec, getFullState, computeOrbitTrail, sunDirectionEci, isInEarthShadow, visibleZoneAngle,
-         parseTLEEpoch, parseTLEParams, tleEpochDate, tleElements, j2RaanRate } from './orbit.js';
+         parseTLEEpoch, parseTLEParams, tleEpochDate } from './orbit.js';
 
 const TLE_URL        = '/api/tle';
 const TICK_MS        = 2000;            // position update cadence
@@ -51,6 +49,8 @@ let showECI         = false;
 let showECEF        = false;
 
 export async function initUI() {
+  // Earlier versions kept a TLE history in this browser; that analysis now lives outside the app.
+  try { ['iss.tleLog', 'iss.elementHistory', 'iss.lastTle'].forEach(k => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
   const saved = loadSettings();
   const fromLink = decodeHash(location.hash);
   observer = fromLink.observer ?? saved.observer ?? null;
@@ -61,7 +61,6 @@ export async function initUI() {
   setupHelpTips();
   setupCollapsibles();
   setupControlsPanel();
-  setupTleHealth();
   setupPasses();
   setupTimebar();
   setupKeyboard();
@@ -368,14 +367,9 @@ async function loadTLE() {
       name: data.name, line1: data.line1, line2: data.line2,
       satrec: makeSatrec(data.line1, data.line2),
       fetchedAt: Date.now(),
-      source: data.source || 'unknown',
     };
-    recordDrift(tle || loadLastTle(), fresh);
-    recordElements(tle || loadLastTle(), fresh);
-    saveLastTle(fresh);
     tle = fresh;
     showTLEInfo(tle);
-    renderTleHealth();
     setPassSatrec(tle.satrec);
   } catch (e) {
     // Keep using the previous TLE if we have one; otherwise tick() will retry.
@@ -426,7 +420,6 @@ function loadOrbitTrail() {
   } catch (e) {
     console.error('[Orbit] Failed to compute orbit trail:', e);
   }
-  renderTleHealth();                                   // keeps the "age" figure fresh
   if (Date.now() - lastPassRefresh > 5 * 60_000) { lastPassRefresh = Date.now(); refreshPasses(); }
 }
 let lastPassRefresh = Date.now();
@@ -581,121 +574,6 @@ function setupPasses() {
     },
     requestPick: (cb) => { pickCb = cb; canvas.style.cursor = cb ? 'crosshair' : ''; },
   });
-}
-
-// ── TLE health: how far the ISS jumps when a fresh TLE arrives ──────────────
-
-let tleLog = [];
-let elementHistory = [];     // one tleElements() record per distinct TLE epoch
-
-function setupTleHealth() {
-  tleLog = loadLog();
-  elementHistory = loadHistory();
-  document.getElementById('th-toggle')?.addEventListener('click', () => {
-    const el = document.getElementById('th-log');
-    if (el) el.hidden = !el.hidden;
-  });
-  document.getElementById('th-csv')?.addEventListener('click', () => {
-    const blob = new Blob([logToCsv(tleLog)], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'iss-tle-corrections.csv';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  });
-  renderTleHealth();
-}
-
-/** Compare the previous TLE with the fresh one at the same instant and log the gap. */
-function recordDrift(prevTle, fresh) {
-  if (!prevTle || (prevTle.line1 === fresh.line1 && prevTle.line2 === fresh.line2)) return;   // nothing changed
-  // Only a genuinely newer element set counts. A stale cache copy or a fallback source
-  // serving an older TLE would otherwise be logged as a bogus "correction".
-  if (tleEpochDate(fresh.line1) <= tleEpochDate(prevTle.line1)) return;
-  try {
-    const prevSat = prevTle.satrec || makeSatrec(prevTle.line1, prevTle.line2);
-    const now = new Date();
-    const d = tleDrift(prevSat, fresh.satrec, now);
-    tleLog = appendEntry(tleLog, {
-      checkedAt: now.toISOString(),
-      oldEpoch: tleEpochDate(prevTle.line1).toISOString(),
-      newEpoch: tleEpochDate(fresh.line1).toISOString(),
-      source: fresh.source,
-      new_alt_km: tleElements(fresh.line1, fresh.line2).mean_alt_km,
-      bstar: tleElements(fresh.line1, fresh.line2).bstar,
-      ...d,
-    });
-    saveLog(tleLog);
-  } catch (e) {
-    console.warn('[TLE] Could not measure drift (old TLE too stale?):', e.message);
-  }
-}
-
-/** Remember the elements of every distinct TLE we see (the previous one too, if it is new to us). */
-function recordElements(prevTle, fresh) {
-  try {
-    let h = elementHistory;
-    if (prevTle) h = appendElements(h, { ...tleElements(prevTle.line1, prevTle.line2), source: prevTle.source || 'saved' });
-    h = appendElements(h, { ...tleElements(fresh.line1, fresh.line2), source: fresh.source });
-    if (h !== elementHistory) { elementHistory = h; saveHistory(h); }
-  } catch (e) {
-    console.warn('[TLE] Could not record elements:', e.message);
-  }
-}
-
-const REBOOST_KM = 5;   // a correction this large usually means a reboost or a manoeuvre
-
-function renderTleHealth() {
-  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-  if (tle) {
-    const h = (Date.now() - tleEpochDate(tle.line1).getTime()) / 3_600_000;
-    set('th-age', h < 48 ? `${h.toFixed(1)} h` : `${(h / 24).toFixed(1)} days`);
-  }
-  const last = tleLog[tleLog.length - 1];
-  if (last) {
-    const when = new Date(last.checkedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    set('th-last',
-      `${last.total_km.toFixed(2)} km` + (last.total_km > REBOOST_KM ? ' <span class="warn" title="Large correction: possible reboost">⚠</span>' : '') +
-      `<br><span class="tle-param-label">${when} · along ${last.along_km.toFixed(2)}, cross ${last.cross_km.toFixed(2)}, radial ${last.radial_km.toFixed(2)}</span>`);
-  }
-  renderOrbitHealth(set);
-
-  const toggle = document.getElementById('th-toggle');
-  if (toggle) toggle.textContent = `Log (${tleLog.length})`;
-  const csv = document.getElementById('th-csv');
-  if (csv) csv.disabled = tleLog.length === 0;
-
-  const rows = [...tleLog].reverse().map(e => {
-    const when = new Date(e.checkedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const ageH = (new Date(e.checkedAt) - new Date(e.oldEpoch)) / 3_600_000;
-    return `<tr><td>${when}</td><td>${ageH.toFixed(0)} h</td><td>${e.total_km.toFixed(2)}</td><td>${e.along_km.toFixed(2)}</td><td>${e.cross_km.toFixed(2)}</td><td>${e.radial_km.toFixed(2)}</td><td>${e.new_alt_km == null ? '—' : e.new_alt_km.toFixed(1)}</td></tr>`;
-  }).join('');
-  set('th-log', tleLog.length
-    ? `<table><thead><tr><th>Checked</th><th>Old age</th><th>Total km</th><th>Along</th><th>Cross</th><th>Radial</th><th>Alt km</th></tr></thead><tbody>${rows}</tbody></table>`
-    : '<span class="tle-param-label">No corrections yet. One is logged each time NORAD publishes a newer TLE.</span>');
-}
-
-/** Altitude, decay, plane drift and notable events, from the element history and the current TLE. */
-function renderOrbitHealth(set) {
-  if (!tle) return;
-  const now = tleElements(tle.line1, tle.line2);
-  set('th-alt', `${now.mean_alt_km.toFixed(1)} km`);
-  set('th-decay', `${now.decay_km_per_day.toFixed(3)} km/day <span class="tle-param-label">(${(now.decay_km_per_day * 30).toFixed(1)} km/month)</span>`);
-
-  const t = decayTrend(elementHistory);
-  set('th-trend', t
-    ? `${t.kmPerDay.toFixed(3)} km/day <span class="tle-param-label">(${t.count} TLEs, ${t.spanDays.toFixed(1)} days)</span>`
-    : '<span class="tle-param-label">needs 3 TLEs over a day</span>');
-
-  const expected = j2RaanRate(now.sma_km, now.eccentricity, now.inclination_deg);
-  const seen = observedRaanRate(elementHistory, 24);
-  set('th-raan', `${expected.toFixed(2)}°/day` + (seen == null ? '' : ` <span class="tle-param-label">(seen ${seen.toFixed(2)})</span>`));
-
-  const fmt = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric' });
-  const ev = findEvents(elementHistory).slice(-3).reverse();
-  set('th-events', ev.length
-    ? ev.map(e => `<div>${e.type === 'reboost' ? '⬆ Reboost' : '⚠ High drag'} <span class="tle-param-label">${fmt(e.epoch)} · ${e.detail}</span></div>`).join('')
-    : '<span class="tle-param-label">none detected</span>');
 }
 
 // ── Connection Status ─────────────────────────────────────────────────────────
