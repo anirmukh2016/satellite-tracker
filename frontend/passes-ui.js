@@ -46,6 +46,13 @@ export function initPasses(h) {
     hooks.requestPick((pt) => { stopPicking(); if (pt) setObserver(pt); });
   });
 
+  $('pp-presets').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-lat]');
+    if (!b) return;
+    stopPicking();
+    setObserver({ lat: parseFloat(b.dataset.lat), lon: parseFloat(b.dataset.lon) });
+  });
+
   $('pp-clear').addEventListener('click', () => setObserver(null));
 
   try { showAll = localStorage.getItem(ALL_KEY) === '1'; } catch { /* storage unavailable */ }
