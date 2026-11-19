@@ -18,7 +18,7 @@ Requirements: Node 20+ and an internet connection (to fetch the live TLE). No de
 ## What You'll See
 
 - **3D Earth globe** with the ISS marker updating every 2 seconds
-- **Orbit trail**: orange = past 30 min, cyan = predicted next 30 min, with small arrows showing the direction of travel
+- **Orbit trail**: orange = past 30 min, cyan = predicted next 30 min, with a small arrow on each showing the direction of travel
 - **HUD**: live latitude, longitude, altitude, orbital speed, UTC time
 - **TLE panel** (bottom-left): raw Two-Line Element data driving the simulation
 - **ECI/ECEF frame toggles** (top-right): solid (ECI) vs dashed (ECEF) labeled axes, a GMST arc, the ISS position vector, and live ECI/ECEF coordinate panels showing the same vector in both frames
