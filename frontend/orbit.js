@@ -287,6 +287,9 @@ export function sunElevationAt(latDeg, lonDeg, sunDirEci, gmst) {
  * (times are Dates). Passes whose peak elevation is below `minPeakEl` are skipped.
  * `visible` means that, at some moment above 10° elevation, the ISS was in
  * sunlight while the observer's sky was dark (Sun below −6°) — the naked-eye rule.
+ * Visible passes also carry `visStart`/`visEnd` (the first and last such moments); the
+ * others carry `reason`: 'daylight' (sky never dark enough while the ISS was above 10°) or
+ * 'shadow' (sky dark, but the ISS was in Earth's shadow the whole time).
  */
 export function findPasses(satrec, latDeg, lonDeg, from = new Date(), hours = 48,
                            { stepSec = 15, minPeakEl = 10 } = {}) {
@@ -305,17 +308,28 @@ export function findPasses(satrec, latDeg, lonDeg, from = new Date(), hours = 48
       if (!cur) cur = { start: date, startAz: la.az, peak: { time: date, el: la.el, az: la.az }, visible: false };
       if (la.el > cur.peak.el) cur.peak = { time: date, el: la.el, az: la.az };
       cur.endAz = la.az; cur.end = date;
-      if (la.el >= 10 && !cur.visible) {
+      if (la.el >= 10) {
         const sun = sunDirectionEci(date);
-        if (!isInEarthShadow(rEci, sun) && sunElevationAt(latDeg, lonDeg, sun, gmst) < -6) cur.visible = true;
+        const sunlit = !isInEarthShadow(rEci, sun), dark = sunElevationAt(latDeg, lonDeg, sun, gmst) < -6;
+        if (dark) cur.anyDark = true;
+        if (sunlit && dark) {
+          cur.visible = true;
+          cur.visStart ??= date;
+          cur.visEnd = date;
+        }
       }
     } else if (cur) {
-      if (cur.peak.el >= minPeakEl) passes.push({ ...cur, durationS: (cur.end - cur.start) / 1000 });
+      if (cur.peak.el >= minPeakEl) passes.push(finishPass(cur));
       cur = null;
     }
   }
-  if (cur && cur.peak.el >= minPeakEl) passes.push({ ...cur, durationS: (cur.end - cur.start) / 1000 });
+  if (cur && cur.peak.el >= minPeakEl) passes.push(finishPass(cur));
   return passes;
+}
+
+function finishPass(p) {
+  const { anyDark, ...rest } = p;
+  return { ...rest, durationS: (p.end - p.start) / 1000, ...(p.visible ? {} : { reason: anyDark ? 'shadow' : 'daylight' }) };
 }
 
 /** Compass point name for an azimuth in degrees. */

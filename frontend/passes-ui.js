@@ -99,11 +99,20 @@ export function refresh() {
     b.className = 'pp-pass';
     const when = p.peak.time.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
     const mins = Math.floor(p.durationS / 60), secs = Math.round(p.durationS % 60);
+    const hm = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    b.classList.add(p.visible ? 'is-visible' : 'not-visible');
+    const marker = p.visible
+      ? '<span class="pp-vis">★ Visible</span>'
+      : '<span class="pp-novis">○ Not visible</span>';
+    const why = p.visible
+      ? (hm(p.visStart) === hm(p.visEnd) ? `Visible around ${hm(p.visStart)}` : `Visible ${hm(p.visStart)}–${hm(p.visEnd)}`)
+      : (p.reason === 'shadow' ? 'ISS in Earth\'s shadow' : 'Sky too bright (daylight)');
     b.innerHTML =
-      `<span class="pp-when">${when}</span>` +
-      (p.visible ? '<span class="pp-vis">★ Visible</span>' : '') +
+      `<span class="pp-when">${when}</span>${marker}` +
       `<br><span class="pp-dim">${untilText(p.peak.time)} · peak ${Math.round(p.peak.el)}°</span>` +
-      `<br><span class="pp-dim">${compass(p.startAz)} → ${compass(p.endAz)} · ${mins}m ${String(secs).padStart(2, '0')}s</span>`;
+      `<br><span class="pp-dim">${compass(p.startAz)} → ${compass(p.endAz)} · ${mins}m ${String(secs).padStart(2, '0')}s</span>` +
+      `<br><span class="${p.visible ? 'pp-why-yes' : 'pp-dim'}">${why}</span>`;
+    b.setAttribute('aria-label', `${when}, ${p.visible ? 'visible' : 'not visible: ' + why}`);
     b.title = 'Jump to the peak of this pass';
     b.addEventListener('click', () => hooks.jumpTo(p.peak.time));
     return b;

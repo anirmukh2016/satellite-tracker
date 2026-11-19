@@ -375,6 +375,10 @@ html, body {
 .pp-pass .pp-when { color: var(--accent); }
 .pp-pass .pp-vis { color: #6fe28f; float: right; }
 .pp-pass .pp-dim { color: var(--text-dim); }
+.pp-pass .pp-novis { color: var(--text-dim); float: right; }
+.pp-pass .pp-why-yes { color: #6fe28f; }
+.pp-pass.is-visible { border-left: 3px solid #6fe28f; }
+.pp-pass.not-visible { border-left: 3px solid rgba(104,128,160,0.35); }
 .pp-note { font-size: 10px; color: var(--text-dim); line-height: 1.45; margin-top: 4px; }
 .pp-empty { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
 

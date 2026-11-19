@@ -160,3 +160,20 @@ test('visible passes are dusk or dawn ones: sun below -6 deg, ISS sunlit', async
     assert.ok(ok, 'visible pass has a dark-sky, sunlit moment');
   }
 });
+
+test('every pass says whether it is visible and why', async () => {
+  const { makeSatrec, findPasses } = await orbit();
+  const passes = findPasses(makeSatrec(L1, L2), 40, -100, DATE, 24 * 5);
+  const vis = passes.filter(p => p.visible), not = passes.filter(p => !p.visible);
+  assert.ok(vis.length && not.length, 'both kinds occur');
+  for (const p of vis) {
+    assert.ok(p.visStart && p.visEnd && p.visStart <= p.visEnd, 'visible window');
+    assert.ok(p.visStart >= p.start && p.visEnd <= p.end, 'window inside the pass');
+    assert.equal(p.reason, undefined);
+  }
+  for (const p of not) {
+    assert.ok(['daylight', 'shadow'].includes(p.reason), `reason ${p.reason}`);
+    assert.equal(p.visStart, undefined);
+  }
+  assert.ok(not.some(p => p.reason === 'daylight'), 'some daytime passes');
+});
