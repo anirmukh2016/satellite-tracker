@@ -166,29 +166,6 @@ export function visibleZoneAngle(altKm, minElevDeg = 10) {
   return Math.acos(R_EARTH_KM * Math.cos(el) / (R_EARTH_KM + altKm)) - el;
 }
 
-/**
- * Circle on the Earth's surface bounding what the satellite can see (the
- * horizon circle). Angular radius = acos(Re / (Re + alt)), ~20.3° (~2,260 km) for
- * the ISS. Returns n + 1 {lat, lon} points (first == last) via the spherical
- * destination-point formula.
- */
-export function footprintCircle(lat, lon, altKm, n = 90) {
-  const Re = 6378.137;
-  const ang = Math.acos(Re / (Re + altKm));
-  const phi1 = lat * DEG, lam1 = lon * DEG;
-  const sinP1 = Math.sin(phi1), cosP1 = Math.cos(phi1);
-  const pts = [];
-  for (let i = 0; i <= n; i++) {
-    const brg = (2 * Math.PI * i) / n;
-    const sinP2 = sinP1 * Math.cos(ang) + cosP1 * Math.sin(ang) * Math.cos(brg);
-    const phi2 = Math.asin(sinP2);
-    const lam2 = lam1 + Math.atan2(Math.sin(brg) * Math.sin(ang) * cosP1,
-                                   Math.cos(ang) - sinP1 * sinP2);
-    pts.push({ lat: phi2 / DEG, lon: ((((lam2 / DEG) + 180) % 360) + 360) % 360 - 180 });
-  }
-  return pts;
-}
-
 /** Epoch of TLE line 1 as a Date (UTC). */
 export function tleEpochDate(line1) {
   const s = line1.substring(18, 32).trim();

@@ -52,22 +52,6 @@ test('SGP4 failure surfaces as an error', async () => {
   assert.throws(() => propagate(makeSatrec(L1, L2), new Date('2126-01-01T00:00:00Z')));
 });
 
-test('footprint circle is a horizon circle around the sub-satellite point', async () => {
-  const { footprintCircle } = await orbit();
-  const alt = 420;
-  const pts = footprintCircle(-15.2, -84.9, alt, 90);
-  assert.equal(pts.length, 91);
-  const want = Math.acos(6378.137 / (6378.137 + alt));          // ≈ 20.3°
-  const D = Math.PI / 180;
-  for (const p of pts) {
-    const c = Math.sin(p.lat * D) * Math.sin(-15.2 * D) +
-              Math.cos(p.lat * D) * Math.cos(-15.2 * D) * Math.cos((p.lon + 84.9) * D);
-    near(Math.acos(Math.min(1, c)), want, 1e-9, 'angular distance from centre');
-  }
-  near(want / D, 20.3, 0.1, 'horizon angle at 420 km');
-  near(pts[0].lat, pts[90].lat, 1e-9, 'closed loop');
-});
-
 test('ground track covers one orbit and ends at the sub-satellite point', async () => {
   const { makeSatrec, computeOrbitTrail, getFullState } = await orbit();
   const sat = makeSatrec(L1, L2);

@@ -144,7 +144,7 @@ Toggle the frames on the globe and the difference becomes visible rather than ab
 
 ECEF coordinates are Cartesian (x, y, z in km) — useful for math, useless for a human reading a map. Converting to latitude/longitude/altitude sounds like basic trigonometry until you remember Earth isn't a sphere: it's an oblate **WGS84 ellipsoid**, flattened slightly at the poles. That flattening means latitude isn't a simple arctangent of z over the equatorial radius — the tracker uses **Bowring's iterative method** to solve for geodetic latitude and altitude on the WGS84 ellipsoid accurately, rather than approximating Earth as a sphere and accepting the resulting altitude error.
 
-## 6. Ground Track, Nadir and Footprint
+## 6. Ground Track and Nadir
 
 The orange and cyan trails float at the ISS's altitude, about 420 km above the surface, so they don't say which *places* the station passes over. The **ground track** does: it is the orbit projected down onto the surface, the sequence of **sub-satellite points** (the latitude and longitude the HUD shows). Computing it needs exactly the pipeline above — for each time *t*, propagate with SGP4, rotate ECI to ECEF using GMST(*t*), convert to geodetic — and drawing the result on the Earth-fixed globe. In effect, it is the orbit as seen from the rotating Earth.
 
@@ -153,9 +153,9 @@ Two features of the track are worth noticing:
 - **It stays within about ±51.6° of latitude** (the orbit's inclination), tracing a sinusoid-like curve across the map.
 - **Each orbit is shifted west by about 23°.** The ISS completes an orbit in ~93 minutes, during which the Earth turns 360° × 93 / 1436 ≈ 23° beneath it. That is why successive passes cover different longitudes, and why you only see the ISS from a given place on some orbits.
 
-The **nadir line** drops from the ISS straight to the sub-satellite point ("nadir" is straight down, the opposite of zenith). The **footprint** — the white ring — is the horizon circle: the set of ground points from which the ISS is currently above the horizon. For a satellite at altitude *h* over an Earth of radius *R*, it has an angular radius of acos(R / (R + h)), about 20° or ~2,260 km at 420 km. Anyone inside the ring could, in principle, see the ISS overhead (whether they actually do also depends on daylight and weather, since the ISS is only visible when sunlit and the observer is in darkness).
+The **nadir line** drops from the ISS straight to the sub-satellite point ("nadir" is straight down, the opposite of zenith). The circle of ground from which the ISS is above the horizon (angular radius acos(R / (R + h)), about 20° or ~2,260 km at 420 km) is shown separately, as the In-View Zone in the next section.
 
-The ground track covers one full orbit (±46 minutes), and the whole layer is a single toggle, off by default.
+The ground track covers one full orbit (±46 minutes), and the track and nadir line are a single toggle, off by default.
 
 ## 7. Day, Night and "Can I See It?"
 
@@ -178,7 +178,7 @@ Three things follow from that one vector:
 
 - **The terminator.** A point on the ground is in daylight when its outward normal makes an acute angle with the Sun direction. The terminator is the great circle 90° from the sub-solar point. The shading uses the Sun's elevation at each point and fades across the twilight stages: *civil* (Sun 0° to −6°), *nautical* (−6° to −12°) and *astronomical* (−12° to −18°) before full night.
 - **Is the ISS sunlit?** SGP4 gives its ECI position. If it is on the sun side of Earth it is lit. If it is behind Earth, it is in shadow only if it lies within one Earth radius of the Earth–Sun axis: a cylinder of shadow trailing away from the Sun. (The real shadow is a cone with a fuzzy edge; the difference is seconds of timing.) In mid-November the ISS spends about 36 minutes of each 93-minute orbit in that shadow, close to the maximum; at other times of year it can stay in continuous sunlight for days.
-- **The visible zone.** Combine the three conditions: the ISS at least ~10° above the horizon (a circle of about 12.5° radius under it, smaller than the 20° horizon footprint), the ground dark enough (Sun below −6°) and the ISS sunlit. The globe highlights that patch. If there is a green-lit area on the dark side, people there could see the ISS now; if there isn't, nobody can.
+- **The in-view zone.** Combine the three conditions: the ISS at least ~10° above the horizon (a circle of about 12.5° radius under it, smaller than the 20° geometric horizon circle, because anything lower is lost in haze and trees), the ground dark enough (Sun below −6°) and the ISS sunlit. An optional toggle draws the ring on the globe and fills it in green only where all three hold. A ring with no fill means nobody inside it can see the ISS right now.
 
 What it ignores: weather, the ISS's actual brightness (it varies with its orientation and range), and the observer's own horizon. It answers "could it be seen from there?", not "will it be bright?".
 
@@ -194,7 +194,7 @@ Celestrak.org → api/tle.js (edge-cached 1h)
 
 - **TLE endpoint** — `api/tle.js` fetches the ISS TLE from Celestrak (falling back to wheretheiss.at), validates it, and lets the CDN cache it for an hour (`s-maxage` plus `stale-if-error`), so the upstream sources see roughly one request per hour no matter how many people are watching.
 - **Physics** — `orbit.js` is the physics core. SGP4 comes from the vendored satellite.js; GMST, ECI→ECEF, ECEF→geodetic (Bowring), speed, orbit and ground-track sampling, the horizon-circle geometry and TLE parsing are written out by hand, because they are the educational part. It recomputes the ISS state every 2 seconds. The same module is checked in Node tests against golden values produced by the project's original Python implementation.
-- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop. `iss.js` draws the ISS marker (dimmed in eclipse), the trails and the ground layer. The Earth's material is patched in `globe.js` with a small shader that adds the terminator and the visible zone. `frames.js` renders the ECI/ECEF axes, equatorial ring, GMST arc and position vector. `ui.js` runs the tracking loop that ties it all together and drives the HUD, the toggles and the ECI/ECEF data panels.
+- **Frontend** — `globe.js` builds the Earth/atmosphere/star field and render loop. `iss.js` draws the ISS marker (dimmed in eclipse), the trails and the ground layer. The Earth's material is patched in `globe.js` with a small shader that adds the terminator and the in-view zone. `frames.js` renders the ECI/ECEF axes, equatorial ring, GMST arc and position vector. `ui.js` runs the tracking loop that ties it all together and drives the HUD, the toggles and the ECI/ECEF data panels.
 - **The ISS marker** — a small procedural model (truss, solar arrays, modules) rather than a dot. It is exaggerated (the real station is ~109 m) and kept a constant size on screen, and it is oriented like the real thing: nose along the velocity vector, zenith up, truss across the orbit plane — all derived from the ECI position and velocity SGP4 already returns.
 - **Colour that doesn't depend on the map** — trails, axes and rings are opaque lines without blending or tone-mapping, so they read the same over ocean, forest, desert and ice.
 - **Deployment** — hosted on Vercel's free tier: static files plus the one cached function. (An earlier version ran SGP4 on a Python server and streamed positions over a WebSocket; Vercel's serverless functions can't hold WebSockets, and doing the maths in the browser also means zero per-viewer server load.)
@@ -207,8 +207,8 @@ What you'll see: the 3D Earth rotating in real sidereal time with the real day/n
 
 Things to try:
 
-- **Day / Night & Visibility** — find a moment when the HUD says "Sunlit" and a green-lit patch appears on the dark side of the globe: that is where the ISS is visible.
-- **Ground Track & Footprint** — turn it on, then tilt the globe toward the horizon to see the dashed track hugging the surface, the nadir line, and the horizon circle.
+- **Day / Night** and **In-View Zone** — turn on the zone, then find a moment when the HUD says "Sunlit" and part of the ring is filled green on the dark side of the globe: that is where the ISS is visible.
+- **Ground Track & Nadir** — turn it on, then tilt the globe toward the horizon to see the dashed track hugging the surface and the nadir line.
 - **ECI and ECEF axes** — turn both on to see the solid/dashed axes, the yellow θ arc, the ISS position vector, and the two coordinate panels side by side.
 - **Trails in ECI** — compare the inertial orbit with the Earth-fixed one.
 - **Hover (or tap) the ISS** for its live position, altitude and speed.

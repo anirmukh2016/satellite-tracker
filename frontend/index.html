@@ -90,17 +90,24 @@
       </div>
       <div class="opt">
         <button class="toggle-btn active" id="btn-daynight">
-          Day / Night &amp; Visibility
+          Day / Night
           <span class="indicator color-dot-daynight"></span>
         </button>
-        <button type="button" class="help-btn" aria-label="What does Day / Night &amp; Visibility do?" data-help="Shades the night side of Earth using the Sun&#x27;s real position right now, with a soft twilight band. The green patch marks where the ISS could be seen by eye this moment: it must be more than 10° above the horizon, the observer&#x27;s sky must be dark, and the ISS must still be in sunlight. The HUD shows if the ISS itself is sunlit or in Earth&#x27;s shadow. Weather is not considered.">i</button>
+        <button type="button" class="help-btn" aria-label="What does Day / Night do?" data-help="Shades the night side of the Earth using the Sun&#x27;s real position right now, with a soft twilight band at the terminator. The ISS model dims while it is in Earth&#x27;s shadow, and the Sunlight row in the HUD says whether it is sunlit.">i</button>
+      </div>
+      <div class="opt">
+        <button class="toggle-btn" id="btn-zone">
+          In-View Zone
+          <span class="indicator color-dot-zone"></span>
+        </button>
+        <button type="button" class="help-btn" aria-label="What does In-View Zone do?" data-help="The green ring marks where on Earth the ISS is at least 10° above the horizon. It is filled in only where someone could actually see it right now: their sky is dark (Sun below −6°) and the ISS is in sunlight. A ring with no fill means nobody inside it can see the ISS at the moment. Weather is not considered.">i</button>
       </div>
       <div class="opt">
         <button class="toggle-btn" id="btn-ground">
-          Ground Track &amp; Footprint
+          Ground Track &amp; Nadir
           <span class="indicator color-dot-ground"></span>
         </button>
-        <button type="button" class="help-btn" aria-label="What does Ground Track &amp; Footprint do?" data-help="Dashed line: the ISS ground track, the path on the surface directly beneath it (±46 min). Line down from the ISS: the nadir, pointing straight at the Earth&#x27;s centre. White circle: the footprint, everywhere that has the ISS above the horizon right now.">i</button>
+        <button type="button" class="help-btn" aria-label="What does Ground Track &amp; Nadir do?" data-help="Dashed line: the ISS ground track, the path on the surface directly beneath it (±46 min). Line down from the ISS: the nadir, pointing straight at the Earth&#x27;s centre.">i</button>
       </div>
       <div class="opt">
         <button class="toggle-btn" id="btn-trail-frame">
@@ -215,13 +222,18 @@
       </p>
       <br/>
       <p>
-        <strong>Day / Night &amp; Visibility:</strong> the night side is shaded
+        <strong>Day / Night:</strong> the night side is shaded
         using the real position of the Sun, with a soft twilight band at the
         terminator. The HUD says whether the ISS itself is <strong>sunlit</strong>
-        or <strong>in Earth's shadow</strong> (the model dims). The
-        <span style="color:#6fe28f">green-lit patch</span> on the dark side is
-        where you could actually see it right now: ISS above 10° elevation,
-        sky dark (Sun below −6°) and ISS sunlit. It ignores weather and brightness.
+        or <strong>in Earth's shadow</strong> (the model dims).
+      </p>
+      <br/>
+      <p>
+        <strong>In-View Zone</strong> (off by default): the
+        <span style="color:#6fe28f">green ring</span> is where the ISS is at least
+        10° above the horizon. It is filled in only where you could actually see
+        it right now: sky dark (Sun below −6°) and ISS sunlit. No fill means
+        nobody inside the ring can see it. It ignores weather and brightness.
       </p>
       <br/>
       <p>
@@ -234,12 +246,10 @@
       </p>
       <br/>
       <p>
-        <strong>Ground Track &amp; Footprint</strong> (off by default): the
+        <strong>Ground Track &amp; Nadir</strong> (off by default): the
         <strong>dashed</strong> orange/cyan line is the orbit projected onto the
         surface — one full orbit, ±46 min. The thin white dashed line is the
         <strong>nadir line</strong>, straight down to the point beneath the ISS.
-        The white ring is its <strong>horizon circle</strong>: everywhere the
-        ISS is currently above the horizon.
       </p>
       <br/>
       <p>

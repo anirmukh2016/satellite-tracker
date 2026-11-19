@@ -12,7 +12,7 @@
 
 import { updateISSPosition, updateTrails, setTrailsVisible, setTrailFrame,
          updateGroundTrack, setGroundVisible, setISSSunlit } from './iss.js';
-import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible } from './globe.js';
+import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible } from './globe.js';
 import { setECIVisible, setECEFVisible, updateECEFRotation,
          updateGMSTIndicator, updateFrameVectors } from './frames.js';
 import { makeSatrec, getFullState, computeOrbitTrail, sunDirectionEci, isInEarthShadow, visibleZoneAngle,
@@ -36,6 +36,7 @@ let showFutureTrail = true;
 let showInertialTrail = false;
 let showGround      = false;
 let showDayNight    = true;
+let showZone        = false;
 let showECI         = false;
 let showECEF        = false;
 
@@ -207,6 +208,12 @@ function setupToggleButtons() {
     showDayNight = !showDayNight;
     setNightVisible(showDayNight);
     return showDayNight;
+  });
+
+  setupBtn('btn-zone', () => {
+    showZone = !showZone;
+    setZoneVisible(showZone);
+    return showZone;
   });
 
   setupBtn('btn-ground', () => {

@@ -4,7 +4,7 @@
  * Responsibilities:
  *   - ISS 3D marker (low-poly station model + blinking glow, constant on-screen size)
  *   - Past trail (orange line) and future trail (cyan line)
- *   - Ground track (dashed, on the surface), nadir line and visibility footprint
+ *   - Ground track (dashed, on the surface) and nadir line
  *   - Hover raycasting for tooltip
  *   - Smooth position interpolation between updates
  */
@@ -14,7 +14,6 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { latLonAltToXYZ, EARTH_RADIUS_KM, SCALE, R_EARTH, getEarthMesh } from './globe.js';
-import { footprintCircle } from './orbit.js';
 
 // Colors
 // Trails are drawn opaque and un-tonemapped (no blending), so the colour reads
@@ -267,15 +266,14 @@ function setTrailGeometry(line, points) {
   line.geometry.setPositions(positions);
 }
 
-// ── Ground track, nadir line, visibility footprint ──────────────────────────
+// ── Ground track and nadir line ─────────────────────────────────────────
 // The ground track is the orbit projected onto the surface (Earth-fixed, so it
 // rotates with the Earth mesh). The nadir line drops from the ISS to the point
-// beneath it; the footprint is the horizon circle — where the ISS is above the
-// horizon. All opaque and un-tonemapped, like the trails.
+// beneath it. All opaque and un-tonemapped, like the trails.
 
 const GROUND_ALT_KM = 20;     // clears the 64-segment sphere's chord sag (~8 km)
 const COLOR_GROUND = 0xffffff;
-let groundGroup, groundPast, groundFuture, footprintLine, nadirLine;
+let groundGroup, groundPast, groundFuture, nadirLine;
 let groundOn = false;   // off by default; toggled from the UI
 
 function makeGroundLine(color, dashed) {
@@ -313,7 +311,6 @@ function createGroundLayer() {
 
   groundPast    = makeGroundLine(COLOR_PAST, true);
   groundFuture  = makeGroundLine(COLOR_FUTURE, true);
-  footprintLine = makeGroundLine(COLOR_GROUND, false);
 
   // Nadir line lives in world space (the ISS position is a world position)
   const geom = new THREE.BufferGeometry();
@@ -334,11 +331,6 @@ export function updateGroundTrack(pastPoints, futurePoints) {
     const joined = pastPoints?.length ? [pastPoints[pastPoints.length - 1], ...futurePoints] : futurePoints;
     setLinePositions(groundFuture, joined, true);
   }
-}
-
-function updateFootprint(state) {
-  if (!footprintLine) return;
-  setLinePositions(footprintLine, footprintCircle(state.lat, state.lon, state.alt_km), false);
 }
 
 function updateNadir() {
@@ -374,7 +366,6 @@ export function setGroundVisible(visible) {
 export function updateISSPosition(state) {
   latestState = state;
   if (isHovering) updateTooltip(state);
-  updateFootprint(state);
 
   // Convert ECEF → world (ECI) by rotating by -GMST around Y.
   // The Earth mesh is rotated by -GMST, so the same rotation maps

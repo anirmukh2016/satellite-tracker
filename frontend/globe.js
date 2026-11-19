@@ -38,6 +38,7 @@ const earthUniforms = {
   uVisCos:    { value: 1.0 },   // cos of the visible-zone angular radius around the ISS
   uIssSunlit: { value: 0.0 },   // 1 when the ISS is in sunlight
   uNightOn:   { value: 1.0 },
+  uZoneOn:    { value: 0.0 },   // In-View Zone toggle (outline + fill)
 };
 let starField;
 
@@ -142,8 +143,9 @@ function createEarth() {
  *
  *  - night: darken by the sun's elevation at each point, with a soft twilight band
  *    (sun ≈ −18° … +4.6°), leaving continents faintly visible
- *  - zone: where the ISS is above ~10° elevation (inside uVisCos), the ground is
- *    dark (sun below −6°) and the ISS is sunlit — i.e. where you could actually see it
+ *  - zone: a ring where the ISS is 10° above the horizon (uVisCos), always drawn when on.
+ *    Inside it, a green fill only where the ground is dark (sun below −6°) and the ISS is
+ *    sunlit — i.e. where you could actually see it
  */
 function patchEarthShader(shader) {
   Object.assign(shader.uniforms, earthUniforms);
@@ -160,6 +162,7 @@ function patchEarthShader(shader) {
     uniform float uVisCos;
     uniform float uIssSunlit;
     uniform float uNightOn;
+    uniform float uZoneOn;
   ` + shader.fragmentShader.replace(
     '#include <map_fragment>',
     `#include <map_fragment>
@@ -173,12 +176,12 @@ function patchEarthShader(shader) {
 
     float cosA = dot(wn, uIssDir);
     float dark = 1.0 - smoothstep(-0.13, -0.08, sunDot);             // sun below about -6 degrees
-    float zoneOn = uNightOn * uIssSunlit * dark;
+    float fillOn = uZoneOn * uIssSunlit * dark;
     float inZone = smoothstep(uVisCos - 0.0008, uVisCos + 0.0008, cosA);
     float rim = 1.0 - smoothstep(0.0, 0.0012, abs(cosA - uVisCos));
     vec3 zoneColor = dayColor * 0.55 + vec3(0.02, 0.10, 0.05);       // the ground lit up where the ISS is visible
-    diffuseColor.rgb = mix(diffuseColor.rgb, zoneColor, zoneOn * inZone * 0.9);
-    diffuseColor.rgb += zoneOn * rim * vec3(0.25, 0.8, 0.45);`
+    diffuseColor.rgb = mix(diffuseColor.rgb, zoneColor, fillOn * inZone * 0.9);
+    diffuseColor.rgb += uZoneOn * rim * vec3(0.25, 0.8, 0.45);   // outline: always`
   );
 }
 
@@ -337,6 +340,10 @@ export function updateSunLighting({ sunDirEci, issDirEci, issSunlit, visCos }) {
 
 export function setNightVisible(on) {
   earthUniforms.uNightOn.value = on ? 1.0 : 0.0;
+}
+
+export function setZoneVisible(on) {
+  earthUniforms.uZoneOn.value = on ? 1.0 : 0.0;
 }
 
 export function updateEarthRotation(gmst_rad) {
