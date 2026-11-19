@@ -659,10 +659,12 @@ function renderTleHealth() {
       `<br><span class="tle-param-label">${when} · along ${last.along_km.toFixed(2)}, cross ${last.cross_km.toFixed(2)}, radial ${last.radial_km.toFixed(2)}</span>`);
   }
   renderOrbitHealth(set);
+  const ts = (iso) => new Date(iso).getTime();
+  const recent = elementHistory.slice(-40);
   set('th-spark',
-    sparkBlock('Correction at each new TLE (km)', tleLog.slice(-40).map(e => e.total_km), 2) +
-    sparkBlock('Mean altitude (km)', elementHistory.slice(-40).map(r => r.mean_alt_km), 1) +
-    sparkBlock('Drag term B*', elementHistory.slice(-40).map(r => r.bstar), 5));
+    sparkBlock('Correction at each new TLE (km)', tleLog.slice(-40).map(e => ({ t: ts(e.checkedAt), v: e.total_km })), v => v.toFixed(2)) +
+    sparkBlock('Mean altitude (km)', recent.map(r => ({ t: ts(r.epoch), v: r.mean_alt_km })), v => v.toFixed(1)) +
+    sparkBlock('Drag term B*', recent.map(r => ({ t: ts(r.epoch), v: r.bstar })), v => v.toExponential(1)));
 
   const toggle = document.getElementById('th-toggle');
   if (toggle) toggle.textContent = `Log (${tleLog.length})`;
@@ -702,18 +704,31 @@ function renderOrbitHealth(set) {
     : '<span class="tle-param-label">none detected</span>');
 }
 
-function sparkBlock(label, values, digits) {
-  const svg = sparkline(values);
-  if (!svg) return '';
-  const last = values[values.length - 1];
-  return `<div class="th-spark-label"><span>${label}</span><span>${last.toFixed(digits)}</span></div>${svg}`;
-}
-
-function sparkline(values) {
-  if (values.length < 2) return '';
-  const lo = Math.min(...values), hi = Math.max(...values), range = hi - lo || 1;
-  const pts = values.map((v, i) => `${(i / (values.length - 1) * 100).toFixed(1)},${(28 - ((v - lo) / range) * 26).toFixed(1)}`).join(' ');
-  return `<svg viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#4af" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg>`;
+/**
+ * A labelled trend chart. `points` are {t (ms), v}. Points are placed by time (not evenly), the
+ * vertical range is the lowest-to-highest value (printed beside the chart, since the scale is
+ * stretched to fit), and each point is a dot so sparse data stays readable.
+ */
+function sparkBlock(label, points, fmt) {
+  if (!points.length) return '';
+  const lo = Math.min(...points.map(p => p.v)), hi = Math.max(...points.map(p => p.v));
+  const t0 = points[0].t, t1 = points[points.length - 1].t;
+  const X = (t) => (t1 === t0 ? 50 : ((t - t0) / (t1 - t0)) * 96 + 2);
+  const Y = (v) => (hi === lo ? 15 : 27 - ((v - lo) / (hi - lo)) * 24);
+  const xy = points.map(p => [X(p.t), Y(p.v)]);
+  const line = points.length > 1
+    ? `<polyline points="${xy.map(q => `${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#4af" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`
+    : '';
+  const dots = xy.map(q => `<path d="M${q[0].toFixed(1)} ${q[1].toFixed(1)}h0" stroke="#4af" stroke-width="5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`).join('');
+  const span = (t1 - t0) / 86_400_000;
+  const when = (t) => new Date(t).toLocaleString([], span < 2
+    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric' });
+  const last = points[points.length - 1].v;
+  return `<div class="th-spark-label"><span>${label}</span><span>${fmt(last)}</span></div>` +
+    `<div class="th-chart"><svg viewBox="0 0 100 30" preserveAspectRatio="none" role="img" ` +
+    `aria-label="${label}: from ${fmt(points[0].v)} to ${fmt(last)} over ${points.length} TLEs">${line}${dots}</svg>` +
+    `<div class="th-yaxis"><span>${fmt(hi)}</span><span>${hi === lo ? '' : fmt(lo)}</span></div></div>` +
+    `<div class="th-xaxis"><span>${when(t0)}</span><span>${points.length} TLE${points.length === 1 ? '' : 's'}</span><span>${points.length > 1 ? when(t1) : ''}</span></div>`;
 }
 
 // ── Connection Status ─────────────────────────────────────────────────────────
