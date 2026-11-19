@@ -274,6 +274,10 @@ html, body {
   cursor: help;
   padding: 0;
 }
+.help-btn.sm { width: 18px; height: 18px; font-size: 11px; }
+.tle-header-end { display: inline-flex; align-items: center; gap: 8px; }
+.tle-health-title, .vec-title-row { display: flex; align-items: center; justify-content: space-between; }
+#hud-header .help-btn { margin-left: auto; }
 .help-btn:hover, .help-btn:focus-visible, .help-btn.open {
   color: var(--accent);
   border-color: var(--accent);
@@ -294,6 +298,7 @@ html, body {
   line-height: 1.5;
   box-shadow: 0 4px 18px rgba(0,0,0,0.5);
   pointer-events: none;
+  white-space: pre-line;
 }
 
 /* ── Buttons, time bar, passes, TLE health ───────────────────────────────── */
@@ -401,8 +406,6 @@ html, body {
 #th-log th, #th-log td { padding: 2px 4px; text-align: right; white-space: nowrap; }
 #th-log th:first-child, #th-log td:first-child { text-align: left; }
 #th-log th { color: var(--text-dim); font-weight: normal; position: sticky; top: 0; background: #0a1428; }
-#th-legend { margin-top: 8px; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
-#th-legend em { color: var(--text); font-style: normal; }
 kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; color: var(--accent); }
 
 /* ── TLE Panel (bottom-left) ─────────────────────────────────────────────── */

@@ -282,13 +282,19 @@ function setupHelpTips() {
     tip.textContent = btn.dataset.help;
     tip.hidden = false;
     const r = btn.getBoundingClientRect();
-    const panel = btn.closest('#controls, #passes-panel').getBoundingClientRect();
+    const host = btn.closest('[data-tip-panel]') || btn;
+    const panel = host.getBoundingClientRect();
     const w = tip.offsetWidth, h = tip.offsetHeight, m = 12;
-    // Desktop: beside the panel the button is in (left of the right-hand Visualization panel,
-    // right of the left-hand passes panel). If that doesn't fit (phones), below the row.
+    // Beside the panel the button is in (right of a left-hand panel, left of a right-hand one),
+    // or below it for panels marked "below". If that doesn't fit (phones), below the row.
     const onLeft = panel.left + panel.width / 2 < window.innerWidth / 2;
     let left = onLeft ? panel.right + 8 : panel.left - w - 8, top = r.top + r.height / 2 - h / 2;
-    if (left < m || left + w > window.innerWidth - m) { left = Math.max(m, Math.min(r.left - w / 2, window.innerWidth - w - m)); top = r.bottom + 8; }
+    const fits = left >= m && left + w <= window.innerWidth - m;
+    if (host.dataset.tipPanel === 'below' || !fits) {
+      left = Math.max(m, Math.min(r.left - w / 2, window.innerWidth - w - m));
+      top = r.bottom + 8;
+      if (top + h > window.innerHeight - m) top = r.top - h - 8;      // not enough room below: above
+    }
     top = Math.max(m, Math.min(top, window.innerHeight - h - m));
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
@@ -671,8 +677,6 @@ function renderTleHealth() {
   set('th-log', tleLog.length
     ? `<table><thead><tr><th>Checked</th><th>Old age</th><th>Total km</th><th>Along</th><th>Cross</th><th>Radial</th><th>Alt km</th></tr></thead><tbody>${rows}</tbody></table>`
     : '<span class="tle-param-label">No corrections yet. One is logged each time NORAD publishes a newer TLE.</span>');
-  const legend = document.getElementById('th-legend');
-  if (legend) legend.hidden = tleLog.length === 0;
 }
 
 /** Altitude, decay, plane drift and notable events, from the element history and the current TLE. */
