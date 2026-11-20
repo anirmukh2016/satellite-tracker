@@ -155,7 +155,7 @@ Two features of the track are worth noticing:
 
 The **nadir line** drops from the ISS straight to the sub-satellite point ("nadir" is straight down, the opposite of zenith). The circle of ground from which the ISS is above the horizon (angular radius acos(R / (R + h)), about 20° or ~2,260 km at 420 km) is shown separately, as the In-View Zone in the next section.
 
-The ground track covers one full orbit (±46 minutes), and the track and nadir line are a single toggle, off by default.
+The ground track covers the last orbit (46 minutes) and the next two and a half (230 minutes), so you can see each lap land about 23° west of the previous one, and the track and nadir line are a single toggle, off by default.
 
 ## 7. Day, Night and "Can I See It?"
 
@@ -218,7 +218,6 @@ Things to try:
 ## 10. Further Work
 
 - **Richer passes** — an elevation mask for local horizons, brightness (magnitude) estimates, and a sky-chart view of each pass
-- **Longer ground tracks** — several orbits at once, to show the ~23° westward drift directly
 - **Multi-satellite support** — extend past NORAD 25544 to track any object with a public TLE
 - **Inertial orbit view** — draw several orbits in the inertial frame to show the fixed ellipse while the Earth turns beneath it
 - **Follow-Earth camera** — a camera locked to the rotating Earth, to see the inertial frame spin around you

@@ -24,7 +24,7 @@ Requirements: Node 20+ and an internet connection (to fetch the live TLE). No de
 - **ECI/ECEF frame toggles** (top-right): solid (ECI) vs dashed (ECEF) labeled axes, a GMST arc, the ISS position vector, and live ECI/ECEF coordinate panels showing the same vector in both frames
 - **Day / Night** toggle (on by default): real-time day/night terminator with a twilight band and a HUD line for whether the ISS is sunlit or in Earth's shadow
 - **In-View Zone** toggle: a ring where the ISS is at least 10° above the horizon, filled green only where it could actually be seen right now (dark sky, ISS sunlit)
-- **Ground Track & Nadir** toggle: dashed path of the ISS projected onto the surface (one full orbit) and a line dropping to the point beneath it
+- **Ground Track & Nadir** toggle: dashed path of the ISS projected onto the surface (one orbit behind, about two and a half ahead, so you can see each lap shift ~23° west) and a line dropping to the point beneath it
 - **Next Passes** (top-left): set a location (device, click on the globe, or typed coordinates) and see the ISS passes you could actually see over it for the next 30 days (visible-only by default, with a checkbox to show every pass), with peak elevation, direction and visible window. Click a pass to jump to it
 - **Time bar** (bottom-centre): scrub ±3 hours to watch the terminator, zone and ISS move; **Live** returns to now; **Recenter** eases the camera back to the ISS; **Share** copies a link that restores your toggles, location and time
 - Settings persist between visits; keyboard shortcuts: P F D Z G E C toggle layers, R recenter, L live, ←/→ step time

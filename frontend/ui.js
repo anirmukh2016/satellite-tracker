@@ -414,8 +414,8 @@ function loadOrbitTrail() {
     const now = simNow();
     const { past, future } = computeOrbitTrail(tle.satrec, now);
     updateTrails(past, future);
-    // Ground track: one full orbit (±46 min) at 1-minute steps
-    const ground = computeOrbitTrail(tle.satrec, now, 46, 46, 60);
+    // Ground track: one orbit behind (46 min), three ahead (230 min: this orbit + 2 more) at 1-minute steps
+    const ground = computeOrbitTrail(tle.satrec, now, 46, 230, 60);
     updateGroundTrack(ground.past, ground.future);
   } catch (e) {
     console.error('[Orbit] Failed to compute orbit trail:', e);
