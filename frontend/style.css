@@ -807,3 +807,9 @@ kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); b
   .hud-value { font-size: 11px; }
   .toggle-btn { font-size: 10px; }
 }
+
+.pp-place {
+  width: 100%; margin-bottom: 8px; padding: 4px 7px; font: 11px var(--font); color: var(--text);
+  background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 5px; color-scheme: dark;
+}
+.pp-place:focus { outline: none; border-color: var(--accent); }

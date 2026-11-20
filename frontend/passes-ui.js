@@ -8,6 +8,7 @@
  * a checkbox shows every pass. Clicking a pass jumps the time bar to its peak.
  */
 
+import { PLACES } from './places.js';
 import { findPasses, compass } from './orbit.js';
 
 const DAYS = 30;                // how far ahead to search
@@ -46,11 +47,13 @@ export function initPasses(h) {
     hooks.requestPick((pt) => { stopPicking(); if (pt) setObserver(pt); });
   });
 
-  $('pp-presets').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-lat]');
-    if (!b) return;
+  const sel = $('pp-place');
+  PLACES.forEach((pl, i) => sel.add(new Option(pl.name, String(i))));
+  sel.addEventListener('change', () => {
+    const pl = PLACES[Number(sel.value)];
+    if (!pl) return;
     stopPicking();
-    setObserver({ lat: parseFloat(b.dataset.lat), lon: parseFloat(b.dataset.lon) });
+    setObserver({ lat: pl.lat, lon: pl.lon });
   });
 
   $('pp-clear').addEventListener('click', () => setObserver(null));
@@ -87,10 +90,17 @@ export function setSatrec(s) { satrec = s; refresh(); }
 
 export function setObserver(obs) {
   observer = obs;
+  syncPlace(obs);
   limit = PAGE;
   hooks.onObserver(obs);
   $('pp-clear').hidden = !obs;
   refresh();
+}
+
+// Show a known place in the dropdown when the current location is one; otherwise reset it.
+function syncPlace(obs) {
+  const i = obs ? PLACES.findIndex(p => Math.abs(p.lat - obs.lat) < 1e-4 && Math.abs(p.lon - obs.lon) < 1e-4) : -1;
+  $('pp-place').value = i >= 0 ? String(i) : '';
 }
 
 function say(text) { $('pp-loc').textContent = text; }

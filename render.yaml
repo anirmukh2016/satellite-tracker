@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: satellite-tracker
+    runtime: node
+    plan: free
+    buildCommand: echo "no build step"
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true

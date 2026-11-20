@@ -146,7 +146,13 @@ satellite-tracker/
 
 ## Deployment
 
-Deployed on [Vercel](https://vercel.com)'s free (Hobby) tier. Import the repo and deploy — [`vercel.json`](vercel.json) sets `frontend/` as the static output directory and `api/tle.js` is picked up automatically as a serverless function. No build step.
+### Render (current)
+
+[`render.yaml`](render.yaml) describes a free Node web service: in Render choose **New → Blueprint** (or **New → Web Service**: runtime Node, build command empty, start command `npm start`, health check `/healthz`) and point it at this repo and branch. `scripts/dev-server.js` is the production server too: it serves `frontend/` (gzipped), and `/api/tle` with a one-hour in-memory cache that falls back to the last good TLE if upstream is down. The free tier sleeps after ~15 min idle, so the first visit after a pause takes about a minute.
+
+### Vercel (alternative)
+
+Deployable on [Vercel](https://vercel.com)'s free (Hobby) tier. Import the repo and deploy — [`vercel.json`](vercel.json) sets `frontend/` as the static output directory and `api/tle.js` is picked up automatically as a serverless function. No build step.
 
 Why this fits the free tier: Vercel can't hold WebSockets, so the orbit math runs in the browser instead. The only server call is `/api/tle`, cached at the edge for an hour (`s-maxage=3600`, `stale-if-error`), so function invocations stay in the dozens per day regardless of traffic.
 

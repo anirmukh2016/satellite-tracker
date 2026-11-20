@@ -96,11 +96,9 @@
         <button type="button" class="mini-btn" id="pp-pick">Pick on globe</button>
         <button type="button" class="mini-btn" id="pp-clear" hidden>Clear</button>
       </div>
-      <div class="pp-actions pp-presets" id="pp-presets" aria-label="Preset locations">
-        <button type="button" class="mini-btn" data-lat="12.9716" data-lon="77.5946">Bangalore</button>
-        <button type="button" class="mini-btn" data-lat="15.3808" data-lon="73.8314">Dabolim (Goa)</button>
-        <button type="button" class="mini-btn" data-lat="22.5726" data-lon="88.3639">Kolkata</button>
-      </div>
+      <select id="pp-place" class="pp-place" aria-label="Choose a known location">
+        <option value="">Known places…</option>
+      </select>
       <form id="pp-form">
         <input id="pp-input" type="text" inputmode="decimal" autocomplete="off"
                placeholder="lat, lon  e.g. 51.5, -0.12" aria-label="Latitude and longitude" />
