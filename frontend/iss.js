@@ -380,6 +380,77 @@ export function updateGroundTrack(pastPoints, futurePoints) {
   }
 }
 
+// ── Keeping the tracks attached to the ISS, and the flowing dashes ─────────
+// The tracks are rebuilt once a minute, so their ends lag the ISS by up to a
+// minute of travel (~460 km). Every frame the future line's first vertex (and the
+// past line's last) is moved onto the ISS's current Earth-fixed position, and for
+// the dashed ground track the dash distances are re-measured from the ISS. That
+// keeps the dash pattern continuous across rebuilds, and an animated dash offset
+// then makes the future dashes stream out of the ISS.
+
+const FLOW_SPEED = 0.04;        // scene units/s the dashes move relative to the ISS (1 unit = 1000 km)
+const DASH_CYCLE = 0.12 + 0.08; // dashSize + gapSize of the ground lines
+let flowOn = true;              // off while the time bar is scrubbed (it would fight the manual control)
+let flowPhase = 0;
+const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+const _q = new THREE.Vector3();
+
+/** Pause/resume the streaming dashes (paused when simulated time is not live). */
+export function setTrackFlow(on) { flowOn = on; }
+
+function issLocal(out) { return getEarthMesh().worldToLocal(out.copy(currentPos)); }
+
+/** Move a Line2's first vertex (atStart) or last vertex onto q. Returns false if it has no segments. */
+function anchorEnd(line, atStart, q, radius) {
+  const attr = line?.geometry?.attributes?.instanceStart;
+  if (!attr || !line.visible) return false;
+  const a = attr.data.array, o = atStart ? 0 : (attr.count - 1) * 6 + 3;
+  if (radius) { _q.copy(q).setLength(radius); a[o] = _q.x; a[o + 1] = _q.y; a[o + 2] = _q.z; }
+  else { a[o] = q.x; a[o + 1] = q.y; a[o + 2] = q.z; }
+  attr.data.needsUpdate = true;
+  return true;
+}
+
+function endRadius(line, atStart) {
+  const attr = line?.geometry?.attributes?.instanceStart;
+  if (!attr) return 0;
+  const a = attr.data.array, o = atStart ? 3 : (attr.count - 1) * 6;   // the neighbouring, unmoved vertex
+  return Math.hypot(a[o], a[o + 1], a[o + 2]);
+}
+
+/** Re-measure a dashed line's distances from the ISS: forward (future) from 0 up, or backward (past) from 0 down. */
+function measureFrom(lines, forward, cum = 0) {
+  for (const line of lines) {
+    const s = line.geometry.attributes.instanceStart, d = line.geometry.attributes.instanceDistanceStart;
+    if (!s || !d || !line.visible) continue;
+    const a = s.data.array, dd = d.data.array;
+    const n = s.count;
+    for (let k = 0; k < n; k++) {
+      const i = forward ? k : n - 1 - k, o = i * 6;
+      const len = Math.hypot(a[o + 3] - a[o], a[o + 4] - a[o + 1], a[o + 5] - a[o + 2]);
+      if (forward) { dd[i * 2] = cum; cum += len; dd[i * 2 + 1] = cum; }
+      else { dd[i * 2 + 1] = cum; cum -= len; dd[i * 2] = cum; }
+    }
+    d.data.needsUpdate = true;
+  }
+}
+
+function updateTracks(deltaTime) {
+  const q = issLocal(new THREE.Vector3());
+  if (pastTrailLine?.visible) anchorEnd(pastTrailLine, false, q);
+  if (futureTrailLine?.visible) anchorEnd(futureTrailLine, true, q);
+
+  if (!groundOn || !groundGroup) return;
+  const lap0 = groundFutureLaps[0];
+  if (groundPast.visible) anchorEnd(groundPast, false, q, endRadius(groundPast, false));
+  if (lap0?.visible) anchorEnd(lap0, true, q, endRadius(lap0, true));
+  measureFrom([groundPast], false);
+  measureFrom(groundFutureLaps, true);
+
+  if (flowOn && !reducedMotion) flowPhase = (flowPhase + FLOW_SPEED * deltaTime) % DASH_CYCLE;
+  groundFutureLaps.forEach(l => { l.material.dashOffset = -flowPhase; });
+}
+
 function updateNadir() {
   if (!nadirLine) return;
   const a = nadirLine.geometry.attributes.position;
@@ -483,6 +554,7 @@ export function animateISS(deltaTime) {
 
   issModel.quaternion.slerp(targetQuat, lerpSpeed);
   updateNadir();
+  updateTracks(deltaTime);
 
   // Ease into / out of eclipse rather than popping
   if (Math.abs(issShade - issShadeTarget) > 0.002) {

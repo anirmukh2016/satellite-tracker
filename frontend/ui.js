@@ -11,7 +11,7 @@
  */
 
 import { updateISSPosition, updateTrails, setTrailsVisible,
-         updateGroundTrack, setGroundVisible, setISSSunlit,
+         updateGroundTrack, setGroundVisible, setTrackFlow, setISSSunlit,
          setObserverMarker, getISSWorldPosition } from './iss.js';
 import { updateEarthRotation, pointCameraAtISS, updateSunLighting, setNightVisible, setZoneVisible,
          recenterOnISS, getCameraDistance, setCameraDistance, getControls, pickEarth, isHiddenByEarth } from './globe.js';
@@ -54,7 +54,7 @@ export async function initUI() {
   const saved = loadSettings();
   const fromLink = decodeHash(location.hash);
   observer = fromLink.observer ?? saved.observer ?? null;
-  if (fromLink.t) simOffsetMs = fromLink.t.getTime() - Date.now();
+  if (fromLink.t) { simOffsetMs = fromLink.t.getTime() - Date.now(); setTrackFlow(false); }
   if (saved.cam && !fromLink.on) setCameraDistance(saved.cam);
 
   setupToggleButtons(fromLink.on ?? saved.on);
@@ -469,6 +469,7 @@ let timeDebounce = null;
 
 function setSimOffset(ms) {
   simOffsetMs = Math.abs(ms) < 1000 ? 0 : ms;
+  setTrackFlow(simOffsetMs === 0);
   const slider = document.getElementById('tb-slider');
   if (slider) slider.value = String(Math.round(simOffsetMs / 60_000));   // pegs at the ends beyond ±3 h
   renderTimebar();
