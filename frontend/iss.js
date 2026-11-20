@@ -246,13 +246,58 @@ function placeArrows(group, color, points, past) {
   group.add(cone);
 }
 
+// Future track: arrows spaced far apart (about one per screenful) that creep along the trail away
+// from the ISS, so the cyan line reads as flowing. Positions are by absolute time (ISS time + offset),
+// so the once-a-minute trail rebuild doesn't make them jump.
+const FUTURE_ARROW_SPACING_MIN = 15;     // orbit minutes between arrows (~55 degrees)
+const FUTURE_ARROW_FLOW_MIN_PER_S = 0.2; // how fast they creep (orbit minutes per real second)
+const FUTURE_ARROW_FADE_MIN = 2;         // shrink in/out over this many minutes at the ISS and the far end
+let futureArrowPos = [];                 // Earth-local Vector3 per future trail point
+let futureArrowPhase = 0;                // minutes, 0..spacing
+
+function placeFutureArrows(points) {
+  futureArrowPos = points.map(p => latLonAltToXYZ(p.lat, p.lon, p.alt_km + 10));
+  const need = Math.ceil((points[points.length - 1].t - points[0].t) / 60_000 / FUTURE_ARROW_SPACING_MIN) + 1;
+  arrowGeom ??= new THREE.ConeGeometry(0.36, ARROW_UNIT_H, 10);
+  while (futureArrows.children.length < need) {
+    futureArrows.add(new THREE.Mesh(arrowGeom, new THREE.MeshBasicMaterial({ color: COLOR_FUTURE, toneMapped: false })));
+  }
+}
+
+function moveFutureArrows(deltaTime) {
+  const pts = futureTrailPoints;
+  if (!futureArrows?.visible || futureArrowPos.length < 2 || !latestState || pts.length < 2) return;
+  if (flowOn && !reducedMotion) {
+    futureArrowPhase = (futureArrowPhase + FUTURE_ARROW_FLOW_MIN_PER_S * deltaTime) % FUTURE_ARROW_SPACING_MIN;
+  }
+  const tIss = Date.parse(latestState.timestamp);
+  const t0 = pts[0].t, tEnd = pts[pts.length - 1].t;
+  const ss = (a, b, x) => { const k = THREE.MathUtils.clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+  futureArrows.children.forEach((c, k) => {
+    const offMin = futureArrowPhase + k * FUTURE_ARROW_SPACING_MIN;
+    const t = tIss + offMin * 60_000;
+    const toEndMin = (tEnd - t) / 60_000;
+    const fade = ss(0, FUTURE_ARROW_FADE_MIN, offMin) * ss(0, FUTURE_ARROW_FADE_MIN, toEndMin);
+    c.userData.fade = fade;
+    c.visible = fade > 0.02 && t >= t0;
+    if (!c.visible) return;
+    let i = 0;
+    while (i < pts.length - 2 && pts[i + 1].t <= t) i++;
+    const f = THREE.MathUtils.clamp((t - pts[i].t) / (pts[i + 1].t - pts[i].t), 0, 1);
+    c.position.lerpVectors(futureArrowPos[i], futureArrowPos[i + 1], f);
+    c.quaternion.setFromUnitVectors(_up, _dir.subVectors(futureArrowPos[i + 1], futureArrowPos[i]).normalize());
+  });
+}
+const _up = new THREE.Vector3(0, 1, 0), _dir = new THREE.Vector3();
+
 function scaleArrows(worldPerPx) {
   for (const g of [pastArrows, futureArrows]) {
     if (!g?.visible) continue;
     for (const c of g.children) {
+      if (!c.visible) continue;
       c.getWorldPosition(_w);
       c.scale.setScalar(THREE.MathUtils.clamp(_w.distanceTo(camera.position) * worldPerPx * ARROW_PX / ARROW_UNIT_H,
-                                              0.004, 0.5));
+                                              0.004, 0.5) * (c.userData.fade ?? 1));
     }
   }
 }
@@ -284,7 +329,7 @@ export function updateTrails(pastPoints, futurePoints) {
   if (futurePoints && futurePoints.length > 1) {
     futureTrailPoints = futurePoints;
     setTrailGeometry(futureTrailLine, futurePoints);
-    placeArrows(futureArrows, COLOR_FUTURE, futurePoints, false);
+    if (futurePoints[0].t != null) placeFutureArrows(futurePoints);
   }
 }
 
@@ -555,6 +600,7 @@ export function animateISS(deltaTime) {
   issModel.quaternion.slerp(targetQuat, lerpSpeed);
   updateNadir();
   updateTracks(deltaTime);
+  moveFutureArrows(deltaTime);
 
   // Ease into / out of eclipse rather than popping
   if (Math.abs(issShade - issShadeTarget) > 0.002) {
