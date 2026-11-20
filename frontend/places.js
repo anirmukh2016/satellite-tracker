@@ -5,6 +5,4 @@ export const PLACES = [
   { name: 'Dabolim (Goa)', lat: 15.3808, lon: 73.8314 },
   { name: 'Delhi',         lat: 28.6139, lon: 77.2090 },
   { name: 'Kolkata',       lat: 22.5726, lon: 88.3639 },
-  { name: 'Muscat',        lat: 23.5880, lon: 58.3829 },
-  { name: 'Pune',          lat: 18.5204, lon: 73.8567 },
 ];
