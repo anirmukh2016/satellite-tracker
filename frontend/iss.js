@@ -307,12 +307,21 @@ function setTrailGeometry(line, points) {
 
 const GROUND_ALT_KM = 20;     // clears the 64-segment sphere's chord sag (~8 km)
 const COLOR_GROUND = 0xffffff;
-let groundGroup, groundPast, groundFuture, nadirLine;
+// Lighter tints of the trail colours: the same orange/cyan, but pale enough to
+// read as a different layer (the ground track vs the orbit at altitude).
+const COLOR_GROUND_PAST   = 0xffb866;
+const COLOR_GROUND_FUTURE = 0x7aeeff;
+// Future ground track is split into laps (~92 points at the 1-minute step) and
+// each later lap is drawn fainter, so the nearest part stays dominant.
+const LAP_POINTS = 92;
+const LAP_OPACITY = [1, 0.55, 0.3];
+let groundGroup, groundPast, nadirLine;
+const groundFutureLaps = [];
 let groundOn = false;   // off by default; toggled from the UI
 
-function makeGroundLine(color, dashed) {
+function makeGroundLine(color, dashed, opacity = 1) {
   const mat = new LineMaterial({
-    color, linewidth: TRAIL_WIDTH, transparent: false, depthWrite: false,
+    color, linewidth: TRAIL_WIDTH, transparent: opacity < 1, opacity, depthWrite: false,
     toneMapped: false, dashed, dashSize: 0.12, gapSize: 0.08,
   });
   mat.resolution.set(window.innerWidth, window.innerHeight);
@@ -343,8 +352,8 @@ function createGroundLayer() {
   groundGroup.visible = groundOn;
   (getEarthMesh() || scene).add(groundGroup);
 
-  groundPast    = makeGroundLine(COLOR_PAST, true);
-  groundFuture  = makeGroundLine(COLOR_FUTURE, true);
+  groundPast = makeGroundLine(COLOR_GROUND_PAST, true);
+  LAP_OPACITY.forEach(o => groundFutureLaps.push(makeGroundLine(COLOR_GROUND_FUTURE, true, o)));
 
   // Nadir line lives in world space (the ISS position is a world position)
   const geom = new THREE.BufferGeometry();
@@ -363,7 +372,11 @@ export function updateGroundTrack(pastPoints, futurePoints) {
   if (pastPoints && pastPoints.length > 1) setLinePositions(groundPast, pastPoints, true);
   if (futurePoints && futurePoints.length > 0) {
     const joined = pastPoints?.length ? [pastPoints[pastPoints.length - 1], ...futurePoints] : futurePoints;
-    setLinePositions(groundFuture, joined, true);
+    groundFutureLaps.forEach((line, i) => {
+      // each lap starts on the previous lap's last point so there is no gap
+      const chunk = joined.slice(i * LAP_POINTS, (i + 1) * LAP_POINTS + 1);
+      if (chunk.length > 1) setLinePositions(line, chunk, true); else line.visible = false;
+    });
   }
 }
 
