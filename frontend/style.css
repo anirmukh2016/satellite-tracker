@@ -342,7 +342,15 @@ html, body {
 .tb-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 #tb-label { flex: 1; min-width: 90px; font-size: 11px; letter-spacing: 0.04em; color: var(--green); }
 #timebar.sim #tb-label { color: var(--accent2); }
-#tb-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+/* Slim slider: thin track, small thumb (the input itself stays tall enough to grab on touch) */
+#tb-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; margin: 0; background: transparent; cursor: pointer; }
+#tb-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: rgba(120, 150, 200, 0.35); }
+#tb-slider::-moz-range-track { height: 3px; border-radius: 2px; background: rgba(120, 150, 200, 0.35); }
+#tb-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%;
+  background: var(--accent); border: 1px solid rgba(255,255,255,0.5); }
+#tb-slider::-moz-range-thumb { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 1px solid rgba(255,255,255,0.5); }
+#tb-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+#tb-slider:focus-visible::-moz-range-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
 #connection-status.simulated { background: rgba(255,153,0,0.12); border: 1px solid var(--accent2); color: var(--accent2); }
 
 #passes-panel {
@@ -733,9 +741,15 @@ kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); b
     left: var(--left);
     width: calc(50vw - 12px);
   }
-  #hud-header { padding: 8px 10px; }
+  /* Compact HUD: just the title, lat, lon and sunlight; tap the header to see altitude, speed and time */
+  #hud-header { padding: 6px 10px; cursor: pointer; }
+  #hud-header .subtitle { display: none; }
+  #hud-header::after { content: '▾'; color: var(--text-dim); font-size: 10px; margin-left: auto; order: 5; }
+  #hud-header .help-btn { margin-left: 0; }
+  #hud:not(.expanded) .hud-row.hud-more, #hud:not(.expanded) #hud-time { display: none; }
+  #hud.expanded #hud-header::after { content: '▴'; }
   #hud-header .iss-icon { font-size: 16px; }
-  #hud-body { padding: 8px 10px; gap: 6px; }
+  #hud-body { padding: 6px 10px; gap: 4px; }
   .hud-label { font-size: 10px; }
   .hud-value { font-size: 12px; }
   #hud-time { padding: 6px 10px; font-size: 10px; }

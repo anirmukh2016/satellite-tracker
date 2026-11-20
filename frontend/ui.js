@@ -59,6 +59,11 @@ export async function initUI() {
 
   setupToggleButtons(fromLink.on ?? saved.on);
   setupHelpTips();
+  // On phones the HUD is compact; tapping its header shows or hides the extra rows
+  document.getElementById('hud-header').addEventListener('click', (e) => {
+    if (e.target.closest('.help-btn')) return;
+    document.getElementById('hud').classList.toggle('expanded');
+  });
   setupCollapsibles();
   setupControlsPanel();
   setupPasses();
