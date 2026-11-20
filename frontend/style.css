@@ -774,6 +774,14 @@ kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); b
     right: var(--right);
     bottom: calc(var(--bottom) + 126px);
   }
+  /* No time-bar box on phones while live: just a small Recenter button. The full bar returns while time is simulated (it holds Live). */
+  #timebar:not(.sim) {
+    left: auto; width: auto; padding: 0; background: none; border: 0;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  #timebar:not(.sim) #tb-label, #timebar:not(.sim) #btn-live, #timebar:not(.sim) #btn-time,
+  #timebar:not(.sim) #btn-share, #timebar:not(.sim) .help-btn, #timebar:not(.sim) #tb-slider { display: none; }
+  #timebar:not(.sim) #btn-recenter { background: var(--surface); padding: 7px 10px; }
   #passes-panel {
     top: auto;
     left: var(--left);
