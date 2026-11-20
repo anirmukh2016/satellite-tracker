@@ -76,10 +76,11 @@
       <span id="tb-label" aria-live="polite">LIVE</span>
       <button type="button" class="mini-btn" id="btn-recenter" title="Recenter the camera on the ISS (R)">⌖ Recenter</button>
       <button type="button" class="mini-btn" id="btn-live" title="Back to the present (L)" disabled>Live</button>
+      <button type="button" class="mini-btn" id="btn-time" aria-expanded="false" aria-controls="tb-slider" title="Show the time slider">⏱ Time</button>
       <button type="button" class="mini-btn" id="btn-share" title="Copy a link to this view">Share</button>
-      <button type="button" class="help-btn sm" aria-label="How the time bar works" data-help="Drag the slider to move up to three hours either side of now and watch the terminator, the zone and the ISS move. Live returns to the present. Recenter eases the camera back to the ISS (it glows when the ISS is behind the Earth). Share copies a link that restores your toggles, location and time.&#10;&#10;Keyboard: ← / → step 1 minute (Shift: 10), L for Live, R to recenter.">i</button>
+      <button type="button" class="help-btn sm" aria-label="How the time bar works" data-help="Press Time to show the slider, then drag it to move up to three hours either side of now and watch the terminator, the zone and the ISS move. Live returns to the present. Recenter eases the camera back to the ISS (it glows when the ISS is behind the Earth). Share copies a link that restores your toggles, location and time.&#10;&#10;Keyboard: ← / → step 1 minute (Shift: 10), L for Live, R to recenter.">i</button>
     </div>
-    <input type="range" id="tb-slider" min="-180" max="180" step="1" value="0"
+    <input type="range" id="tb-slider" hidden min="-180" max="180" step="1" value="0"
            aria-label="Time offset from now, in minutes" />
   </div>
 

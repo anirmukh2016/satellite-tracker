@@ -489,6 +489,8 @@ function offsetText() {
   return `${min < 0 ? '−' : '+'}${t}`;
 }
 
+let timeOpen = false;
+
 function renderTimebar() {
   const sim = simOffsetMs !== 0;
   document.getElementById('timebar')?.classList.toggle('sim', sim);
@@ -496,12 +498,19 @@ function renderTimebar() {
   if (label) label.textContent = sim ? `SIMULATED ${offsetText()}` : 'LIVE';
   const live = document.getElementById('btn-live');
   if (live) live.disabled = !sim;
+  // The slider is hidden until asked for (it invites fidgeting); it shows whenever the time is simulated
+  const show = timeOpen || sim;
+  const slider = document.getElementById('tb-slider');
+  if (slider) slider.hidden = !show;
+  const tbtn = document.getElementById('btn-time');
+  if (tbtn) { tbtn.setAttribute('aria-expanded', String(show)); tbtn.disabled = sim; tbtn.classList.toggle('on', show); }
 }
 
 function setupTimebar() {
   const slider = document.getElementById('tb-slider');
   slider?.addEventListener('input', () => setSimOffset(Number(slider.value) * 60_000));
-  document.getElementById('btn-live')?.addEventListener('click', () => setSimOffset(0));
+  document.getElementById('btn-live')?.addEventListener('click', () => { timeOpen = false; setSimOffset(0); });
+  document.getElementById('btn-time')?.addEventListener('click', () => { timeOpen = !timeOpen; renderTimebar(); });
   document.getElementById('btn-recenter')?.addEventListener('click', recenter);
 
   const share = document.getElementById('btn-share');
@@ -547,7 +556,7 @@ function setupKeyboard() {
     const k = e.key.toLowerCase();
     if (byKey[k]) { setToggle(byKey[k], !toggleState[byKey[k]]); persist(); return; }
     if (k === 'r') { recenter(); return; }
-    if (k === 'l') { setSimOffset(0); return; }
+    if (k === 'l') { timeOpen = false; setSimOffset(0); return; }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       setSimOffset(simOffsetMs + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1) * 60_000);

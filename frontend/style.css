@@ -313,6 +313,7 @@ html, body {
 }
 .mini-btn:hover:not(:disabled), .mini-btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
 .mini-btn:disabled { opacity: 0.4; cursor: default; }
+.mini-btn.on { border-color: var(--accent); color: var(--accent); }
 .mini-btn.attn { border-color: var(--accent2); color: var(--accent2); animation: attn 1.2s ease-in-out infinite; }
 @keyframes attn { 50% { box-shadow: 0 0 8px var(--accent2); } }
 
@@ -762,6 +763,9 @@ kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); b
   #controls-body { padding: 8px; }
   .toggle-btn { padding: 9px 8px; font-size: 11px; }
 
+  .tb-row { gap: 4px; flex-wrap: nowrap; }
+  #tb-label { min-width: 0; flex: 1 1 auto; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tb-row .mini-btn { padding: 4px 6px; font-size: 10.5px; white-space: nowrap; }
   #timebar {
     top: auto;
     transform: none;
