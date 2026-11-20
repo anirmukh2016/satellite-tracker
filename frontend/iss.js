@@ -250,7 +250,7 @@ function placeArrows(group, color, points, past) {
 // from the ISS, so the cyan line reads as flowing. Positions are by absolute time (ISS time + offset),
 // so the once-a-minute trail rebuild doesn't make them jump.
 const FUTURE_ARROW_SPACING_MIN = 15;     // orbit minutes between arrows (~55 degrees)
-const FUTURE_ARROW_FLOW_MIN_PER_S = 0.2; // how fast they creep (orbit minutes per real second)
+const FUTURE_ARROW_FLOW_MIN_PER_S = 0.6; // how fast they creep (orbit minutes per real second)
 const FUTURE_ARROW_FADE_MIN = 2;         // shrink in/out over this many minutes at the ISS and the far end
 let futureArrowPos = [];                 // Earth-local Vector3 per future trail point
 let futureArrowPhase = 0;                // minutes, 0..spacing
