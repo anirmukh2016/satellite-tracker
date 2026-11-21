@@ -60,6 +60,7 @@ html, body {
   transition: opacity 0.3s;
   pointer-events: none;
 }
+#connection-status.idle { opacity: 0; }
 #connection-status.connected {
   background: rgba(0, 255, 80, 0.12);
   border: 1px solid rgba(0, 255, 80, 0.4);

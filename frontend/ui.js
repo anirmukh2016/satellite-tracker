@@ -593,12 +593,22 @@ function setupPasses() {
 
 // ── Connection Status ─────────────────────────────────────────────────────────
 
+let statusFadeTimer = null;
+
 function setConnectionStatus(state, detail) {
   const el = document.getElementById('connection-status');
   if (!el) return;
   const sim = state === 'connected' && simOffsetMs !== 0;
   el.title = state === 'connected' && !sim ? 'Tracking the ISS live' : '';
-  el.className = sim ? 'simulated' : state === 'error' ? 'disconnected' : state;
+  const cls = sim ? 'simulated' : state === 'error' ? 'disconnected' : state;
+  // Plain "live" is the normal case, so the pill fades away a few seconds after connecting and only
+  // comes back for something worth knowing (connecting, an error, simulated time).
+  const isPlainLive = cls === 'connected';
+  const wasPlainLive = el.classList.contains('connected');
+  if (isPlainLive && wasPlainLive) return;      // already showing (or faded); don't restart the timer
+  clearTimeout(statusFadeTimer);
+  el.className = cls;
+  if (isPlainLive) statusFadeTimer = setTimeout(() => el.classList.add('idle'), 4000);
   el.textContent = sim ? `⏱ SIMULATED ${offsetText()}` : {
     connected:    '● LIVE',
     connecting:   '◌ CONNECTING...',
