@@ -51,10 +51,11 @@ html, body {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 5px 14px;
+  padding: 3px 10px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.08em;
+  white-space: nowrap;
   z-index: 100;
   transition: opacity 0.3s;
   pointer-events: none;
@@ -791,12 +792,13 @@ kbd { font: 10px var(--font); padding: 0 4px; border: 1px solid var(--border); b
   }
   #passes-content { max-height: 40dvh; }
   body.sheet-open #connection-status { display: none; }
+  #connection-status.simulated { display: none; }   /* the time bar already says SIMULATED */
 
   #connection-status {
     top: auto;
     bottom: calc(var(--bottom) + 196px);
-    font-size: 10px;
-    padding: 4px 10px;
+    font-size: 9px;
+    padding: 2px 8px;
   }
 
   #frame-panels {

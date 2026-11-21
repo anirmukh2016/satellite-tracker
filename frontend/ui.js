@@ -597,9 +597,10 @@ function setConnectionStatus(state, detail) {
   const el = document.getElementById('connection-status');
   if (!el) return;
   const sim = state === 'connected' && simOffsetMs !== 0;
+  el.title = state === 'connected' && !sim ? 'Tracking the ISS live' : '';
   el.className = sim ? 'simulated' : state === 'error' ? 'disconnected' : state;
-  el.textContent = sim ? `⏱ SIMULATED TIME ${offsetText()}` : {
-    connected:    '● LIVE — ISS TRACKING ACTIVE',
+  el.textContent = sim ? `⏱ SIMULATED ${offsetText()}` : {
+    connected:    '● LIVE',
     connecting:   '◌ CONNECTING...',
     error:        `⚠ ${detail || 'ERROR — check console'}`,
   }[state] || state;
